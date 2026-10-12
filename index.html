@@ -100,7 +100,16 @@ nav.tabs button.alert::after{content:'';position:absolute;top:6px;right:calc(50%
 .hero-msg{margin:12px 0 0;font-size:15px;background:rgb(0 0 0/.13);padding:10px 12px;border-radius:12px}
 .hero .btn{margin-top:10px;background:#fff;color:#0E5E40}
 
-.capture{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 10px}
+.capture{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:0 0 10px}
+.cap{flex-direction:row!important;justify-content:center;padding:12px 8px!important;gap:10px!important}
+.cap .pi{width:38px!important;height:38px!important;line-height:38px!important;font-size:21px!important}
+.bigmic{display:flex;align-items:center;gap:14px;width:100%;margin:14px 0 10px;padding:14px 16px;border:0;border-radius:22px;background:var(--surface);box-shadow:var(--shadow);cursor:pointer;text-align:left;transition:transform .12s ease}
+.bigmic:active{transform:scale(.98)}
+.bigmic>.pi{width:56px;height:56px;line-height:56px;text-align:center;border-radius:50%;background:var(--green);color:#fff;font-size:28px;flex:none;box-shadow:0 0 0 6px var(--mint)}
+.bigmic b{display:block;font-family:var(--display);font-size:18px;font-weight:800}
+.bigmic span span{display:block;font-size:13.5px;color:var(--muted)}
+.lnh{display:flex;align-items:center;gap:10px;padding-top:8px}
+.lnh .ic{width:32px;height:32px;font-size:18px;border-radius:10px}
 .cap{background:var(--surface);border:0;box-shadow:var(--shadow);border-radius:20px;padding:14px 6px 12px;display:flex;flex-direction:column;align-items:center;gap:6px;font-weight:700;cursor:pointer}
 .cap .pi{font-size:24px;width:44px;height:44px;line-height:44px;text-align:center;border-radius:14px;display:inline-block;color:var(--green);background:var(--mint)}
 .cap{transition:transform .12s ease,border-color .2s}
@@ -275,7 +284,7 @@ textarea.i{resize:vertical}
 
 <script>
 /* ===================== Utilidades ===================== */
-const KEY='mi_dinero_v2', IMG='mi_dinero_v2_img_', VERSION='3.2';
+const KEY='mi_dinero_v2', IMG='mi_dinero_v2_img_', VERSION='3.3';
 const CATS=[['Supermercado','shopping-cart'],['Comida fuera','fork-knife'],['Transporte','bus'],['Salud','pill'],['Hogar','house'],['Ocio','popcorn'],['Compras','shopping-bag'],['Cuentas','invoice'],['Otros','package']];
 const ico=n=>`<i class="pi ph-duotone ph-${n}" aria-hidden="true"></i>`;
 const catIcon=c=>ico((CATS.find(x=>x[0]===c)||[0,'package'])[1]);
@@ -401,7 +410,7 @@ const KW={
  'Supermercado':['super','lider','jumbo','unimarc','tottus','santa isabel','acuenta','feria','verdura','fruta','pan(\\s|$)','panaderia','almacen','minimarket','mercaderia','carniceria','leche','huevo','abarrote'],
  'Comida fuera':['almuerzo','comida','restaurant','restoran','cafe(\\s|$)','cafeteria','completo','sushi','pizza','hamburguesa','delivery','rappi','pedidos ya','pedidosya','uber eats','bar(\\s|$)','cerveza','helado','colacion','once(\\s|$)','empanada'],
  'Transporte':['bencina','combustible','copec','shell','aramco','petrobras','uber','didi','cabify','micro(\\s|$)','metro(\\s|$)','bip','peaje','tag(\\s|$)','estacionamiento','taxi','colectivo','bus(\\s|$)','pasaje','tren','merval','mecanico','neumatico'],
- 'Salud':['farmacia','remedio','medicamento','cruz verde','salcobrand','ahumada','doctor','medico','consulta','dentista','examen','kine','clinica','bono(\\s|$)','isapre','fonasa','lentes'],
+ 'Salud':['farmacia','remedio','medicamento','cruz verde','salcobrand','ahumada','doctor','medico','consulta','dentista','examen','kine','clinica','bono(\\s|$)','isapre','fonasa','lentes','odontol','dental','optica','laboratorio','centro medico','integramedica','redsalud','vidaintegra','psicolog','veterinari'],
  'Hogar':['ferreteria','sodimac','easy(\\s|$)','aseo','limpieza','mueble','arreglo','gasfiter','lavanderia','jardin','construmart','detergente'],
  'Ocio':['cine','juego','salida','entrada','concierto','viaje','paseo','carrete','libro','netflix','spotify','disney','hbo','gimnasio','gym'],
  'Compras':['ropa','zapatilla','zapato','polera','pantalon','chaqueta','falabella','paris(\\s|$)','ripley','mercado libre','regalo','amazon','aliexpress','shein','temu','tienda']
@@ -411,7 +420,30 @@ function guessCat(t){const n=' '+NORM(t)+' ';for(const[c,re]of KWRE)if(re.test(n
 const NUMW={un:1,una:1,uno:1,dos:2,tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho:8,nueve:9,diez:10,once:11,doce:12,quince:15,veinte:20,treinta:30,cuarenta:40,cincuenta:50,cien:100,media:0.5};
 const AMT=/\$?\s*(\d{1,3}(?:\.\d{3})+|\d+(?:[.,]\d{1,2})?)\s*(lucas?|mil|k|palos?|mill[oó]n(?:es)?)?(?=[\s.,;!?]|$)/i;
 const STOP=/(^|\s)(gast[eé]|gastamos|pagu[eé]|compr[eé]|me|sali[oó]|cost[oó]|costaron|fueron|son|hoy|ayer|anteayer|antes|en|el|la|los|las|de|del|por|un|una|unos|unas|para|al|con|que|pesos|clp|lucas?|mil|recib[ií]|pagaron|depositaron|transfirieron)(?=\s|$)/gi;
-const INCOME=/(me pagaron|me depositaron|me transfirieron|me devolvieron|recib[ií]|ingreso|sueldo|gan[eé]|bono de)/i;
+const INCOME=/(me pagaron|me pag[oó]|me depositaron|me deposit[oó]|me transfirieron|me transfiri[oó]|me devolvieron|me devolvi[oó]|me lleg[oó]|me llegaron|recib[ií]|ingreso|sueldo|gan[eé]|bono de|vend[ií]|cobr[eé])/i;
+const SAVE=/(apart[eé]|guard[eé]|ahorr[eé]|separ[eé])/i;
+const NAME='([a-zñáéíóú]+)',ART='(?:la\\s+|el\\s+|mi\\s+)?';
+// Nombre de persona: la palabra después de "a"/"al" (presté a Juan) o la que acompaña a "me prestó"
+const pName=(p,re)=>{const m=p.match(re);return m?cap1(m[m.length-1].toLowerCase()):''};
+const findLoan=(name,dir)=>{const n=NORM(name);return n?S.loans.find(l=>loanLeft(l)>0&&(!dir||l.dir===dir)&&(NORM(l.person).split(/\s+/)[0]===n||NORM(l.person)===n)):null};
+const findBill=p=>{const n=' '+NORM(p).replace(/[^a-z0-9ñ ]/g,' ')+' ';return S.bills.find(b=>{const b1=NORM(b.name).trim();return b1&&n.includes(' '+b1+' ')})};
+// Decide qué es cada frase: ahorro, préstamo, abono, pago de cuenta, ingreso o gasto
+function classify(p,whole,single,row){
+  const P=' '+p+' ';
+  if(SAVE.test(P)&&/(meta|ahorro|apart|guard|separ)/i.test(P))return Object.assign(row,{type:'save',cat:'Meta',desc:'Apartado para la meta'});
+  // Presté a Juan
+  if(/prest[eé]/i.test(P)){const who=pName(P,new RegExp('prest[eé]\\s.*?\\ba(?:l)?\\s+'+ART+NAME,'i'));return Object.assign(row,{type:'loan',dir:'out',person:who,due:addDays(row.date,30),desc:''})}
+  // Juan me prestó / me prestó Juan
+  if(/me\s+prest(?:[oó]|aron)/i.test(P)){const who=pName(P,new RegExp(NAME+'\\s+me\\s+prest','i'))||pName(P,new RegExp('me\\s+prest[oó]\\s+'+ART+NAME,'i'))||pName(P,new RegExp('(?:lucas?|mil|\\d)\\s+'+ART+NAME+'\\s*$','i'));return Object.assign(row,{type:'loan',dir:'in',person:who,due:addDays(row.date,30),desc:''})}
+  // Le pagué / le devolví a Juan (abono a una deuda)
+  if(/(pagu[eé]|devolv[ií]|abon[eé])/i.test(P)){const who=pName(P,new RegExp('\\ba(?:l)?\\s+'+ART+NAME,'i')),l=findLoan(who,'in');if(l)return Object.assign(row,{type:'loanpay',loanId:l.id,desc:''})}
+  // Juan me pagó / me devolvió Juan (cobro de algo que presté)
+  if(/me\s+(pag[oó]|devolvi[oó]|abon[oó])/i.test(P)){const who=pName(P,new RegExp(NAME+'\\s+me\\s+(?:pag|devolv|abon)','i'))||pName(P,new RegExp('me\\s+(?:pag[oó]|devolvi[oó]|abon[oó])\\s+'+NAME,'i')),l=findLoan(who,'out');if(l)return Object.assign(row,{type:'loanpay',loanId:l.id,desc:''})}
+  // Pagué la luz
+  const b=findBill(P);if(b&&!INCOME.test(P))return Object.assign(row,{type:'bill',billId:b.id,cat:'Cuentas',desc:b.name});
+  if(INCOME.test(P)||(INCOME.test(whole)&&single))return Object.assign(row,{type:'income',cat:'Ingreso'});
+  return row;
+}
 
 function parse(text){
   if(!text||!text.trim())return[];
@@ -422,14 +454,14 @@ function parse(text){
   t=t.replace(/(^|\s)lucas?(?=\s|$)/gi,(m,a,o,s)=>{const before=s.slice(0,o).trim();return /\d$/.test(before)?m:a+'1 luca'});
   t=t.replace(/(\d+(?:[.,]\d+)?)\s*(lucas?|mil)\s+y\s+media/gi,(m,n,u)=>(parseFloat(n.replace(',','.'))+0.5)+' '+u);
   const pieces=t.replace(/\s+(y|m[aá]s|adem[aá]s|tambi[eé]n|luego)\s+/gi,' | ').split(/,\s+|;|\|/).map(s=>s.trim()).filter(Boolean);
-  const items=[];let carry='';
+  const items=[];let carry='',carryRaw='';
   for(const p of pieces){
     const m=p.match(AMT);
     if(!m){
       const d=p.replace(STOP,' ').replace(/\s+/g,' ').trim();
       if(!d)continue;
       if(items.length){const last=items[items.length-1];last.desc=last.desc?last.desc+', '+d:cap1(d);if(last.cat==='Otros')last.cat=guessCat(last.desc)}
-      else carry=carry?carry+', '+d:d;
+      else{carry=carry?carry+', '+d:d;carryRaw+=' '+p}
       continue;
     }
     let raw=m[1],n;
@@ -438,9 +470,9 @@ function parse(text){
     if(/^(luca|lucas|mil|k)$/.test(u))n*=1000;else if(/^(palo|palos|mill)/.test(u))n*=1e6;else if(n<100)n*=1000;
     n=Math.round(n);if(!n)continue;
     let d=(p.slice(0,m.index)+' '+p.slice(m.index+m[0].length)).replace(STOP,' ').replace(/[$]/g,'').replace(/\s+/g,' ').trim();
-    if(carry){d=carry+(d?', '+d:'');carry=''}
-    const isInc=INCOME.test(p)||(INCOME.test(text)&&pieces.length===1);
-    items.push({amount:n,desc:cap1(d),cat:isInc?'Ingreso':guessCat(d||p),date,type:isInc?'income':'expense'});
+    const full=carryRaw+' '+p;
+    if(carry){d=carry+(d?', '+d:'');carry='';carryRaw=''}
+    items.push(classify(full,text,pieces.length===1,{amount:n,desc:cap1(d),cat:guessCat(d||p),date,type:'expense'}));
   }
   return items;
 }
@@ -536,9 +568,9 @@ function renderHoy(c){
       <p class="hero-msg">${msg}</p>
       ${canSave?`<button class="btn" onclick="openSave()">${ico('piggy-bank')} Guardar lo que sobra</button>`:''}
     </section>
+    <button class="bigmic" onclick="openCapture('voice');listen()">${ico('microphone')}<span><b>Toca y cuéntame</b><span>Gastos, ingresos, cuentas, préstamos o ahorro</span></span></button>
     <div class="capture">
       <button class="cap" onclick="openCapture('text')">${ico('pencil-simple')}Escribir</button>
-      <button class="cap" onclick="openCapture('voice')">${ico('microphone')}Dictar</button>
       <button class="cap" onclick="openCapture('photo')">${ico('receipt')}Boleta</button>
     </div>
     <div class="quick">
@@ -981,17 +1013,19 @@ function capMode(m){stopListen();CAP.mode=m;drawCapture(false)}
 function drawCapture(anim){
   const m=CAP.mode;let body='';
   if(m==='text')body=`<label class="f" for="capText" style="margin-top:0">Escribe como hablas, o toca el micrófono de tu teclado para dictar. Puedes poner varios gastos a la vez.</label>
-    <textarea id="capText" class="i" rows="3" placeholder="Ej: 18 lucas en el súper y 2.500 de café" oninput="CAP.text=this.value">${esc(CAP.text)}</textarea>
+    <textarea id="capText" class="i" rows="3" placeholder="Ej: 18 lucas en el súper, pagué la luz 32 lucas y le presté 20 lucas a Juan" oninput="CAP.text=this.value">${esc(CAP.text)}</textarea>
     <button class="btn soft block" style="margin-top:8px" onclick="interpret()">Interpretar</button>`;
   if(m==='voice')body=`<button id="mic" class="mic" onclick="listen()" aria-label="Dictar gasto"><i class="ph-duotone ph-microphone" aria-hidden="true"></i></button>
-    <p id="micSt" class="small muted" style="text-align:center;margin:4px 0">Toca el micrófono y di, por ejemplo: «gasté 18 lucas en el súper y 2.500 en café».</p>
+    <p id="micSt" class="small muted" style="text-align:center;margin:4px 0">Toca el micrófono y cuéntame, por ejemplo:</p>
+    <div class="small muted" style="text-align:center;line-height:1.7">«gasté 18 lucas en el súper y 2.500 en café»<br>«me pagaron 500 lucas de sueldo»<br>«pagué la luz, 32 lucas»<br>«le presté 20 lucas a Juan» · «Juan me devolvió 10 lucas»<br>«aparté 10 lucas para la meta»</div>
     ${CAP.text?`<p class="small" style="text-align:center;margin:4px 0">«${esc(CAP.text)}»</p>`:''}`;
   if(m==='photo')body=`<div class="acts" style="margin-top:0">
       <label class="btn soft" style="flex:1"><i class="ph-duotone ph-camera" aria-hidden="true"></i> Tomar foto<input type="file" accept="image/*" capture="environment" hidden onchange="pickImg(this)"></label>
       <label class="btn line" style="flex:1">Elegir imagen<input type="file" accept="image/*" hidden onchange="pickImg(this)"></label></div>
     ${CAP.img?`<div class="preview"><img src="${CAP.img}" alt="Foto de la boleta"></div>
-      <button class="btn line block" onclick="ocr()">Leer el total automáticamente</button><p id="ocrSt" class="small muted" style="margin:6px 0 0"></p>`:''}`;
-  sheet(`<h3>Registrar gasto</h3>
+      <p id="ocrSt" class="small" style="margin:6px 0 8px"></p><button class="linkbtn" onclick="ocr()">Volver a leer la boleta</button>`
+    :`<p class="small muted" style="margin:12px 0 0">Para que la lea bien: boleta estirada, con buena luz, sin sombras y ocupando casi toda la foto.</p>`}`;
+  sheet(`<h3>Registrar movimiento</h3>
     <div class="seg" role="tablist">${[['text','Escribir'],['voice','Dictar'],['photo','Boleta']].map(([k,l])=>`<button class="${m===k?'on':''}" onclick="capMode('${k}')">${l}</button>`).join('')}</div>
     ${body}<div id="lines">${linesHTML()}</div>
     <button class="linkbtn" style="margin-top:8px" onclick="addLine()">Agregar una línea a mano</button>
@@ -999,16 +1033,41 @@ function drawCapture(anim){
   if(m==='text'&&anim)setTimeout(()=>$('#capText')&&$('#capText').focus(),60);
 }
 const regLabel=()=>CAP.rows.length>1?`Registrar ${CAP.rows.length} movimientos`:'Registrar';
-function linesHTML(){
-  return CAP.rows.map((r,i)=>`<div class="ln">
-    <div><label class="f">Monto</label><input class="i" inputmode="numeric" placeholder="$0" value="${plain(r.amount)}" oninput="this.value=plain(toNum(this.value));setRow(${i},'amount',toNum(this.value))"></div>
-    <div><label class="f">Fecha</label><input class="i" type="date" value="${r.date}" onchange="setRow(${i},'date',this.value)"></div>
-    <div class="full"><label class="f">Descripción</label><input class="i" value="${esc(r.desc)}" placeholder="Ej: Supermercado" oninput="setRow(${i},'desc',this.value)"></div>
-    <div><label class="f">Tipo</label><select class="i" onchange="setRow(${i},'type',this.value);redrawLines()"><option value="expense">Gasto</option><option value="income" ${r.type==='income'?'selected':''}>Ingreso</option></select></div>
-    <div>${r.type==='income'?'':`<label class="f">Categoría</label><select class="i" onchange="setRow(${i},'cat',this.value)">${catOpts(r.cat)}</select>`}</div>
-    <div class="full"><button class="linkbtn" onclick="delLine(${i})">Quitar esta línea</button></div></div>`).join('');
+const RTYPES=[['expense','Gasto'],['income','Ingreso'],['bill','Pago de cuenta'],['loan','Préstamo nuevo'],['loanpay','Abono de préstamo'],['save','Ahorro para la meta']];
+const RICON={expense:'receipt',income:'hand-coins',bill:'invoice',loan:'arrows-left-right',loanpay:'arrows-left-right',save:'piggy-bank'};
+function rowTitle(r){
+  if(r.type==='bill'){const b=S.bills.find(x=>x.id===r.billId);return b?`Pago de ${b.name}`:'Pago de cuenta'}
+  if(r.type==='loan')return r.dir==='in'?`${r.person||'Alguien'} te prestó`:`Le prestaste a ${r.person||'alguien'}`;
+  if(r.type==='loanpay'){const l=S.loans.find(x=>x.id===r.loanId);return l?(l.dir==='in'?`Abono a ${l.person}`:`${l.person} te pagó`):'Abono de préstamo'}
+  if(r.type==='save')return 'Ahorro para tu meta';
+  return r.type==='income'?'Ingreso':'Gasto';
 }
-function setRow(i,k,v){CAP.rows[i][k]=v}
+function linesHTML(){
+  const opts=(list,sel)=>list.map(([v,l])=>`<option value="${v}" ${v===sel?'selected':''}>${esc(l)}</option>`).join('');
+  return CAP.rows.map((r,i)=>{
+    const set=(k,ev='oninput')=>`${ev}="setRow(${i},'${k}',this.value)"`;
+    let extra='';
+    if(r.type==='expense')extra=`<div class="full"><label class="f">Categoría</label><select class="i" ${set('cat','onchange')}>${catOpts(r.cat)}</select></div>`;
+    if(r.type==='expense'||r.type==='income')extra=`<div class="full"><label class="f">Descripción</label><input class="i" value="${esc(r.desc)}" placeholder="Ej: Supermercado" ${set('desc')}></div>`+extra;
+    if(r.type==='bill')extra=S.bills.length?`<div class="full"><label class="f">¿Qué cuenta pagaste?</label><select class="i" onchange="setRow(${i},'billId',this.value);redrawLines()"><option value="">Elige una cuenta</option>${opts(S.bills.map(b=>[b.id,b.name]),r.billId)}</select></div>${(()=>{const b=S.bills.find(x=>x.id===r.billId);return b&&billPaid(b,period(r.date))?`<div class="full note warn">Ya marcaste ${esc(b.name)} como pagada este período. Esto se guardará como un gasto adicional en Cuentas.</div>`:''})()}`:`<div class="full note warn">Aún no tienes cuentas mensuales. Agrégalas en la pestaña Cuentas, o registra esto como gasto.</div>`;
+    if(r.type==='loan')extra=`<div><label class="f">Tipo</label><select class="i" onchange="setRow(${i},'dir',this.value);redrawLines()">${opts([['in','Me prestaron'],['out','Presté']],r.dir||'in')}</select></div>
+      <div><label class="f">${(r.dir||'in')==='in'?'¿Quién?':'¿A quién?'}</label><input class="i" value="${esc(r.person||'')}" placeholder="Nombre" ${set('person')}></div>
+      <div class="full"><label class="f">Fecha en que se debe pagar</label><input class="i" type="date" value="${r.due||addDays(r.date,30)}" ${set('due','onchange')}></div>`;
+    if(r.type==='loanpay'){const act=S.loans.filter(l=>loanLeft(l)>0);extra=act.length?`<div class="full"><label class="f">¿Qué préstamo?</label><select class="i" ${set('loanId','onchange')}><option value="">Elige un préstamo</option>${opts(act.map(l=>[l.id,(l.dir==='in'?'Le debo a ':'Me debe ')+l.person+' ('+money(loanLeft(l))+')']),r.loanId)}</select></div>`:`<div class="full note warn">No tienes préstamos pendientes.</div>`}
+    return `<div class="ln">
+    <div class="full lnh">${tile(r.type==='expense'?r.cat:r.type==='income'?'Supermercado':r.type==='bill'?'Cuentas':r.type==='save'?'Compras':'Hogar',r.type==='expense'?'':ico(RICON[r.type]))}<b>${esc(rowTitle(r))}</b></div>
+    <div><label class="f">Monto</label><input class="i" inputmode="numeric" placeholder="$0" value="${plain(r.amount)}" oninput="this.value=plain(toNum(this.value));setRow(${i},'amount',toNum(this.value))"></div>
+    <div><label class="f">Fecha</label><input class="i" type="date" value="${r.date}" ${set('date','onchange')}></div>
+    <div class="full"><label class="f">Esto es</label><select class="i" onchange="setRow(${i},'type',this.value);fixRow(${i});redrawLines()">${opts(RTYPES,r.type)}</select></div>
+    ${extra}
+    <div class="full"><button class="linkbtn" onclick="delLine(${i})">Quitar esta línea</button></div></div>`}).join('');
+}
+// Al cambiar el tipo a mano, completar lo que falte
+function fixRow(i){const r=CAP.rows[i];
+  if(r.type==='loan'){r.dir=r.dir||'in';r.due=r.due||addDays(r.date,30);r.person=r.person||''}
+  if(r.type==='bill'&&!r.billId){const b=findBill(r.desc||'');if(b)r.billId=b.id}
+  if(r.type==='expense'&&(!r.cat||r.cat==='Ingreso'||r.cat==='Meta'))r.cat=guessCat(r.desc||'')}
+function setRow(i,k,v){CAP.rows[i][k]=v;if(['billId','loanId','person'].includes(k)){const h=document.querySelectorAll('#lines .lnh b')[i];if(h)h.textContent=rowTitle(CAP.rows[i])}}
 function redrawLines(){$('#lines').innerHTML=linesHTML();const b=$('#commitBtn');b.disabled=!CAP.rows.length;b.textContent=regLabel()}
 function addLine(){CAP.rows.push({amount:0,desc:'',cat:'Otros',date:todayStr(),type:'expense'});redrawLines()}
 function delLine(i){CAP.rows.splice(i,1);redrawLines()}
@@ -1055,46 +1114,168 @@ function compress(file,max,q){return new Promise((res,rej)=>{const u=URL.createO
   im.onerror=()=>rej(new Error('img'));im.src=u})}
 async function pickImg(inp){
   const f=inp.files&&inp.files[0];if(!f)return;
-  try{CAP.img=await compress(f,900,0.6);CAP.full=await compress(f,1800,0.85)}catch(e){toast('No pude abrir esa imagen. Prueba con otra foto.');return}
+  try{CAP.img=await compress(f,900,0.6);CAP.full=await compress(f,2600,0.92)}catch(e){toast('No pude abrir esa imagen. Prueba con otra foto.');return}
   if(!CAP.rows.length)CAP.rows.push({amount:0,desc:'',cat:'Otros',date:todayStr(),type:'expense'});
   drawCapture(false);
+  ocr();
 }
 function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+const loadImg=src=>new Promise((res,rej)=>{const im=new Image();im.onload=()=>res(im);im.onerror=rej;im.src=src});
+
+/* ----- Preparar la foto: recortar la boleta, pasar a gris y subir el contraste ----- */
+async function prepReceipt(src){
+  const im=await loadImg(src);
+  // 1. Buscar el papel (zona clara) en una versión chica de la foto
+  const sw=200,sh=Math.round(im.height*sw/im.width),sc=document.createElement('canvas');sc.width=sw;sc.height=sh;
+  const sx=sc.getContext('2d');sx.drawImage(im,0,0,sw,sh);
+  const sd=sx.getImageData(0,0,sw,sh).data,g=new Uint8Array(sw*sh),hist=new Array(256).fill(0);
+  for(let i=0;i<sw*sh;i++){const v=(sd[i*4]*.299+sd[i*4+1]*.587+sd[i*4+2]*.114)|0;g[i]=v;hist[v]++}
+  // Umbral de Otsu: separa papel claro del fondo
+  let tot=sw*sh,sumA=0;for(let i=0;i<256;i++)sumA+=i*hist[i];
+  let sB=0,wB=0,best=0,th=128;
+  for(let i=0;i<256;i++){wB+=hist[i];if(!wB)continue;const wF=tot-wB;if(!wF)break;sB+=i*hist[i];const mB=sB/wB,mF=(sumA-sB)/wF,v=wB*wF*(mB-mF)*(mB-mF);if(v>best){best=v;th=i}}
+  const rows=new Array(sh).fill(0),cols=new Array(sw).fill(0);
+  for(let y=0;y<sh;y++)for(let x=0;x<sw;x++)if(g[y*sw+x]>th){rows[y]++;cols[x]++}
+  const span=(a,n,f)=>{let s=a.findIndex(v=>v>n*f),e=a.length-1-[...a].reverse().findIndex(v=>v>n*f);return s<0?[0,a.length-1]:[s,e]};
+  let[x0,x1]=span(cols,sh,.2),[y0,y1]=span(rows,sw,.2);
+  const k=im.width/sw,area=(x1-x0)*(y1-y0)/(sw*sh);
+  if(area<.08||area>.92){x0=0;y0=0;x1=sw-1;y1=sh-1}         // no se ve un papel claro: usar la foto entera
+  const m=4;x0=Math.max(0,x0-m);y0=Math.max(0,y0-m);x1=Math.min(sw-1,x1+m);y1=Math.min(sh-1,y1+m);
+  const cx=x0*k,cy=y0*k,cw=(x1-x0+1)*k,ch=(y1-y0+1)*k;
+  // 2. Recortar y ampliar: el texto de la boleta queda de un tamaño que el lector entiende mejor
+  const W=Math.min(2000,Math.max(1400,cw)),H=Math.round(ch*W/cw),cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const cx2=cv.getContext('2d');cx2.drawImage(im,cx,cy,cw,ch,0,0,W,H);
+  const id=cx2.getImageData(0,0,W,H),d=id.data,h2=new Array(256).fill(0);
+  for(let i=0;i<d.length;i+=4){const v=(d[i]*.299+d[i+1]*.587+d[i+2]*.114)|0;d[i]=v;h2[v]++}
+  // 3. Estirar el contraste (papel térmico gris y tinta pálida)
+  const n=W*H;let lo=0,hi=255,acc=0;
+  for(let i=0;i<256;i++){acc+=h2[i];if(acc>n*.01){lo=i;break}}
+  acc=0;for(let i=255;i>=0;i--){acc+=h2[i];if(acc>n*.08){hi=i;break}}
+  const r=Math.max(1,hi-lo);
+  for(let i=0;i<d.length;i+=4){let v=(d[i]-lo)*255/r;v=v<0?0:v>255?255:v;v=255*Math.pow(v/255,1.4);d[i]=d[i+1]=d[i+2]=v}
+  cx2.putImageData(id,0,0);
+  return cv.toDataURL('image/jpeg',.92);
+}
+
+/* ----- Entender el texto leído ----- */
+const RC_TOTAL=/(?:^|[^a-z])(?:[t7][o0][t7][a4][l1i|!]|tota|total|t[o0]tal|[il1|][o0]t[a4][l1i|])/i;
+const RC_PAY=/(monto|a\s*pagar|importe|valor\s*total|tot\.)/i;
+const RC_SKIP=/(sub\s*-?\s*t|iva|neto|propina|vuelto|cambio|descuento|exento|cuota|saldo|ahorr|n[°º]|folio|rut|aprob|comprob|terminal|c[oó]digo)/i;
+const RC_PROC=/(getnet|transbank|redcompra|red\s*compra|webpay|mercado\s*pago|sumup|klap|compra|v[aá]lido|boleta|factura|electr[oó]nica|copia|cliente|visa|master|d[eé]bito|cr[eé]dito|tarjeta|aprobaci|comprobante|terminal|fecha|hora|rut|giro|direcc|tel[eé]fono|www|\.cl|sii|caja|cajero|vendedor|local|n[°º])/i;
+function rcNums(line){
+  // Corregir confusiones típicas del lector dentro de los números: O→0, D→0, l/I→1, S/$ delante
+  const L=line.replace(/(?<=[\d.,])[OoDQ]|[OoDQ](?=[\d.,]*\d)/g,'0').replace(/(?<=[\d.,])[lI|]|[lI|](?=[.,]?\d{3})/g,'1');
+  const out=[];
+  for(const m of L.matchAll(/([$S5]?)\s?(\d{1,3}(?:[.,]\d{3})+|\d{4,7})(?![\d]|[.,]\d)/g)){
+    const raw=m[2],n=Number(raw.replace(/[.,]/g,''));if(n<100||n>=5e6)continue;
+    // "$38.000" leído como "538.000": las boletas chilenas siempre imprimen "$", así que si en la
+    // línea no aparece ninguno y el número parte con 5, lo más probable es que ese 5 sea el signo
+    const dollar5=m[1]===''&&/^5\d{1,3}[.,]\d{3}/.test(raw)&&!/\$/.test(line);
+    if(dollar5){const alt=Number(raw.slice(1).replace(/[.,]/g,''));if(alt>=100)out.push({n:alt,cur:true});out.push({n,cur:false,alt:true});continue}
+    out.push({n,cur:m[1]==='$'||m[1]==='S'});
+  }
+  return out;
+}
 function parseReceipt(text){
   const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
-  const nums=l=>[...l.matchAll(/(\d{1,3}(?:[.,]\d{3})+|\d{3,7})(?!\d)/g)].map(m=>Number(m[1].replace(/[.,]/g,''))).filter(n=>n>=100&&n<5e6);
-  let cand=lines.filter(l=>/total/i.test(l)&&!/sub\s*-?total|neto|iva/i.test(l)).flatMap(nums);
-  if(!cand.length)cand=lines.filter(l=>/total/i.test(l)).flatMap(nums);
-  const shop=(lines.find(l=>/[a-záéíóúñ]{3,}/i.test(l)&&!/rut|boleta|factura|giro|fecha|direcc/i.test(l))||'').replace(/[^\wáéíóúñÁÉÍÓÚÑ .&-]/g,'').trim();
-  return{total:cand.length?Math.max(...cand):0,shop};
+  const score={};
+  const add=(n,w)=>{score[n]=(score[n]||0)+w};
+  lines.forEach((l,i)=>{
+    if(RC_SKIP.test(l)&&!RC_TOTAL.test(l))return;
+    const isT=RC_TOTAL.test(l)&&!/sub\s*-?\s*t/i.test(l),isP=RC_PAY.test(l);
+    if(!isT&&!isP)return;
+    let ns=rcNums(l);
+    if(!ns.length&&lines[i+1])ns=rcNums(lines[i+1]);          // el monto a veces queda en la línea siguiente
+    ns.forEach(x=>add(x.n,(isT?3:2)*(x.alt?.6:1)+(x.cur?.5:0)));
+  });
+  // Si "Total" quedó ilegible: usar montos con $ o montos solos al final de una línea (sin IVA)
+  if(!Object.keys(score).length)lines.forEach(l=>{if(/iva|neto|rut|aprob|comprob|incluid/i.test(l))return;
+    const end=/[\s:][$S5]?\s?(\d{1,3}(?:[.,]\d{3})+)\s*$/.test(l);
+    rcNums(l).forEach(x=>{if(x.cur||end)add(x.n,(x.alt?.6:1)*(end?1:.7))})});
+  const ranked=Object.entries(score).sort((a,b)=>b[1]-a[1]||b[0]-a[0]);
+  const total=ranked.length?Number(ranked[0][0]):0;
+  // Fecha dd/mm/aaaa
+  let date='';const dm=text.match(/(\d{1,2})\s?[\/\-.]\s?(\d{1,2})\s?[\/\-.]\s?(20\d{2}|\d{2})(?!\d)/);
+  if(dm){const y=+dm[3]<100?2000+ +dm[3]:+dm[3],d=new Date(y,+dm[2]-1,+dm[1]);
+    if(d.getDate()===+dm[1]&&d.getMonth()===+dm[2]-1){const s=ymd(d);if(s<=todayStr()&&dayDiff(todayStr(),s)<=400)date=s}}
+  // Comercio: la razón social o el primer nombre que no sea de la máquina de pago
+  const clean=l=>l.replace(/[^\wáéíóúñÁÉÍÓÚÑ .&-]/g,' ').replace(/\s+/g,' ').trim();
+  const cands=lines.map(clean).filter(l=>/[a-záéíóúñ]{3,}/i.test(l)&&!RC_PROC.test(l)&&!/\d{3,}/.test(l)&&l.length<=60);
+  let shop=cands.find(l=>/(sociedad|comercial|ltda|spa|s\.?a\.?$|limitada|empresa|inversiones)/i.test(l))||cands[0]||'';
+  shop=shop.replace(/\b(sociedad|comercial(izadora)?|inversiones|empresa|ltda|limitada|spa|s\.?a\.?)\b/gi,'').replace(/\by\s+c(ia|om?pa[nñ]?[ií]?a?)?\.?\s*$/i,'').replace(/(\s+(y|[a-z]))+\s*$/i,'').replace(/\s+/g,' ').trim();
+  return{total,shop,date,alts:ranked.slice(1,3).map(x=>+x[0])};
+}
+
+let OCRW=null,OCRLOG=null;
+async function ocrWorker(log){
+  if(!window.Tesseract)await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+  OCRLOG=log;if(!OCRW)OCRW=Tesseract.createWorker('spa',1,{logger:m=>OCRLOG&&OCRLOG(m)});
+  return OCRW;
 }
 async function ocr(){
-  const st=$('#ocrSt');if(!CAP.full)return;
-  st.textContent='Preparando el lector. La primera vez descarga unos MB, necesitas internet.';
+  const st=()=>$('#ocrSt');if(!CAP.full)return;
+  const say=t=>{const e=st();if(e)e.innerHTML=t};
+  say('Leyendo la boleta… La primera vez descarga el lector (unos MB), necesitas internet.');
+  const img=CAP.full;
   try{
-    if(!window.Tesseract)await loadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
-    const r=await Tesseract.recognize(CAP.full,'spa',{logger:m=>{if(m.status==='recognizing text'&&$('#ocrSt'))$('#ocrSt').textContent='Leyendo la boleta… '+Math.round(m.progress*100)+'%'}});
-    const{total,shop}=parseReceipt(r.data.text||'');
+    let pct=0;
+    const w=await ocrWorker(m=>{if(m.status==='recognizing text'&&CAP.full===img){pct=Math.round(m.progress*100);say(`Leyendo la boleta… ${pct}%`)}});
+    const prepped=await prepReceipt(img);
+    // Varios intentos: boleta como columna de texto, como bloque y la foto original
+    const tries=[[prepped,'4'],[prepped,'6'],[img,'4']];
+    let best=null,texts=[];
+    for(const[src,psm]of tries){
+      await w.setParameters({tessedit_pageseg_mode:psm,preserve_interword_spaces:'1'});
+      const r=await w.recognize(src);texts.push(r.data.text||'');
+      const p=parseReceipt(r.data.text||'');
+      if(!best||(!best.total&&p.total))best=p;
+      if(best.total&&best.shop&&best.date)break;
+      if(best.total&&!p.total)break;
+    }
+    if(CAP.full!==img)return;                                   // cambiaron la foto mientras leía
+    const all=texts.join('\n'),merged=parseReceipt(all);
+    const res={total:best.total||merged.total,shop:best.shop||merged.shop,date:best.date||merged.date};
     const row=CAP.rows[0]||(CAP.rows[0]={amount:0,desc:'',cat:'Otros',date:todayStr(),type:'expense'});
-    if(total)row.amount=total;
-    if(shop&&!row.desc){row.desc=cap1(shop.toLowerCase());row.cat=guessCat(shop)}
+    if(res.total)row.amount=res.total;
+    if(res.shop&&!row.desc)row.desc=cap1(res.shop.toLowerCase());
+    if(res.date)row.date=res.date;
+    if(row.cat==='Otros'){const c1=guessCat(res.shop||''),c2=c1==='Otros'?guessCat(all):c1;row.cat=c2}
     redrawLines();
-    $('#ocrSt').textContent=total?`Encontré un total de ${money(total)}. Revísalo: la lectura automática puede equivocarse.`:'No encontré el total en la foto. Escríbelo a mano.';
-  }catch(e){if($('#ocrSt'))$('#ocrSt').textContent='No se pudo leer la boleta (¿sin internet?). Escribe el monto a mano.'}
+    const bits=[res.total?`total <b>${money(res.total)}</b>`:'',res.shop?esc(cap1(res.shop.toLowerCase())):'',res.date?`fecha ${nice(res.date)}${res.date!==todayStr()?' (la dejé como fecha del gasto)':''}`:''].filter(Boolean);
+    say(res.total?`Leí: ${bits.join(' · ')}. Revisa que esté bien antes de registrar.`:`No encontré el total${bits.length?` (sí leí: ${bits.join(' · ')})`:''}. Escríbelo a mano o prueba con otra foto: boleta estirada, con buena luz y ocupando casi toda la imagen.`);
+  }catch(e){console.error(e);say('No se pudo leer la boleta (¿sin internet?). Escribe el monto a mano.')}
 }
 function commit(){
   const rows=CAP.rows.filter(r=>r.amount>0);
   if(!rows.length){toast('Indica el monto de al menos una línea.');return}
+  // Revisar que cada línea tenga lo necesario antes de guardar nada
+  for(const r of rows){
+    if(r.type==='bill'&&!S.bills.some(b=>b.id===r.billId)){toast('Elige qué cuenta pagaste, o cámbialo a «Gasto».');return}
+    if(r.type==='loan'&&!(r.person||'').trim()){toast('Indica quién te prestó o a quién le prestaste.');return}
+    if(r.type==='loanpay'&&!S.loans.some(l=>l.id===r.loanId)){toast('Elige a qué préstamo corresponde el abono.');return}
+  }
   const src=CAP.mode==='voice'?'voz':CAP.mode==='photo'?'boleta':'texto';
-  const ids=[];let imgFail=false,tot=0;
+  const ids=[],newLoans=[];let imgFail=false;
   rows.forEach((r,i)=>{
-    const inc=r.type==='income';
-    const m=addMov({type:inc?'income':'expense',amount:r.amount,date:r.date||todayStr(),cat:inc?'Ingreso':r.cat,desc:(r.desc||'').trim()||(inc?'Ingreso':r.cat),src});
+    const date=r.date||todayStr(),a=r.amount;let m;
+    if(r.type==='income')m=addMov({type:'income',amount:a,date,cat:'Ingreso',desc:(r.desc||'').trim()||'Ingreso',src});
+    else if(r.type==='save')m=addMov({type:'save',amount:a,date,cat:'Meta',desc:'Apartado para la meta',src});
+    else if(r.type==='bill'){const b=S.bills.find(x=>x.id===r.billId),P=period(date),done=billPaid(b,P);
+      m=addMov(done?{type:'expense',amount:a,date,cat:'Cuentas',desc:b.name,src}:{type:'expense',amount:a,date,cat:'Cuentas',desc:b.name,billId:b.id,billPeriod:P.key,src:'cuenta'})}
+    else if(r.type==='loan'){const person=cap1(r.person.trim()),l={id:uid(),dir:r.dir||'in',person,amount:a,date,due:r.due||addDays(date,30),note:''};S.loans.push(l);newLoans.push(l.id);
+      m=addMov({type:'loan',amount:l.dir==='in'?a:-a,date,loanId:l.id,kind:'inicio',cat:'Préstamo',desc:l.dir==='in'?`Préstamo de ${person}`:`Préstamo a ${person}`,src:'prestamo'})}
+    else if(r.type==='loanpay'){const l=S.loans.find(x=>x.id===r.loanId),inn=l.dir==='in';
+      m=addMov({type:'loan',amount:inn?-a:a,date,loanId:l.id,kind:'pago',cat:'Préstamo',desc:inn?`Pago a ${l.person}`:`Cobro a ${l.person}`,src:'prestamo'})}
+    else m=addMov({type:'expense',amount:a,date,cat:r.cat,desc:(r.desc||'').trim()||r.cat,src});
     if(i===0&&CAP.mode==='photo'&&CAP.img){try{localStorage.setItem(IMG+m.id,CAP.img);m.img=true}catch(e){imgFail=true}}
-    ids.push(m.id);if(!inc)tot+=r.amount;
+    ids.push(m.id);
   });
   save();closeSheet();render();
-  toast(imgFail?'Registrado, pero no hubo espacio para guardar la foto.':rows.length>1?`Registrados ${rows.length} movimientos.`:(rows[0].type==='income'?`Ingreso de ${money(rows[0].amount)} registrado.`:`Gasto de ${money(tot)} registrado.`),undo(ids));
+  const r0=rows[0],msg=rows.length>1?`Registrados ${rows.length} movimientos.`:
+    r0.type==='income'?`Ingreso de ${money(r0.amount)} registrado.`:r0.type==='save'?`Apartaste ${money(r0.amount)} para tu meta. ¡Bien!`:
+    r0.type==='bill'?`${rowTitle(r0).replace('Pago de ','')} quedó pagada.`:r0.type==='loan'?(r0.dir==='in'?`Deuda con ${cap1(r0.person.trim())} registrada.`:`Préstamo a ${cap1(r0.person.trim())} registrado.`):
+    r0.type==='loanpay'?'Abono registrado.':`Gasto de ${money(r0.amount)} registrado.`;
+  toast(imgFail?'Registrado, pero no hubo espacio para guardar la foto.':msg,{label:'Deshacer',fn:()=>{ids.forEach(delMov);S.loans=S.loans.filter(l=>!newLoans.includes(l.id));save();render()}});
 }
 
 /* ----- Ingresos, ¿puedo comprarlo?, apartar ----- */

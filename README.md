@@ -13,7 +13,7 @@ App personal de finanzas: cuánto puedes gastar hoy para llegar a tu meta del me
 - Laptop (Chrome o Edge): ícono de instalar en la barra de direcciones, o úsala como página normal.
 
 ## Actualizar
-Cambia los archivos y sube el número en la primera línea de `sw.js` (`mis-lucas-v3.2` → `mis-lucas-v3.3`) y `VERSION` en `index.html`.
+Cambia los archivos y sube el número en la primera línea de `sw.js` (`mis-lucas-v3.3` → `mis-lucas-v3.4`) y `VERSION` en `index.html`.
 Los datos de cada dispositivo no se pierden al actualizar.
 
 ## Datos
