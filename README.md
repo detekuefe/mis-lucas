@@ -13,7 +13,7 @@ App personal de finanzas: cuánto puedes gastar hoy para llegar a tu meta del me
 - Laptop (Chrome o Edge): ícono de instalar en la barra de direcciones, o úsala como página normal.
 
 ## Actualizar
-Cambia los archivos y sube el número en la primera línea de `sw.js` (`mi-dinero-v2.1` → `mi-dinero-v2.2`).
+Cambia los archivos y sube el número en la primera línea de `sw.js` (`mi-dinero-v2.2` → `mi-dinero-v2.3`).
 Los datos de cada dispositivo no se pierden al actualizar.
 
 ## Datos

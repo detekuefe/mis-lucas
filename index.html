@@ -174,7 +174,7 @@ textarea.i{resize:vertical}
 
 <script>
 /* ===================== Utilidades ===================== */
-const KEY='mi_dinero_v2', IMG='mi_dinero_v2_img_', VERSION='2.1';
+const KEY='mi_dinero_v2', IMG='mi_dinero_v2_img_', VERSION='2.2';
 const CATS=[['Supermercado','🛒'],['Comida fuera','🍔'],['Transporte','🚌'],['Salud','💊'],['Hogar','🏠'],['Ocio','🎬'],['Compras','🛍️'],['Cuentas','🧾'],['Otros','📦']];
 const catIcon=c=>(CATS.find(x=>x[0]===c)||[0,'📦'])[1];
 const FMT=new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0});
@@ -492,7 +492,7 @@ function renderAju(c){
       <button class="btn" style="margin-top:12px" onclick="savePayday()">Guardar período</button>
     </section></div><div>
     <section class="card"><h2>Respaldo</h2>
-      <p class="small muted" style="margin-top:0">Tus datos se guardan solo en este dispositivo. Exporta un respaldo de vez en cuando, o para pasar tus datos a otro equipo.</p>
+      <p class="small muted" style="margin-top:0">${window.MD_SYNC&&MD_SYNC.user?'Tus datos están en la nube con tu cuenta de Google. Igual puedes descargar una copia cuando quieras.':'Sin sesión, tus datos se guardan solo en este dispositivo. Exporta un respaldo de vez en cuando.'}</p>
       <div class="acts"><button class="btn" onclick="exportData()">Exportar respaldo</button>
       <label class="btn line">Importar respaldo<input type="file" accept="application/json,.json" hidden onchange="importData(this)"></label></div>
     </section>
@@ -547,7 +547,7 @@ function openCapture(mode){CAP={mode,rows:[],img:null,full:null,text:''};drawCap
 function capMode(m){stopListen();CAP.mode=m;drawCapture(false)}
 function drawCapture(anim){
   const m=CAP.mode;let body='';
-  if(m==='text')body=`<label class="f" for="capText" style="margin-top:0">Escribe como hablas. Puedes poner varios gastos a la vez.</label>
+  if(m==='text')body=`<label class="f" for="capText" style="margin-top:0">Escribe como hablas, o toca el micrófono de tu teclado para dictar. Puedes poner varios gastos a la vez.</label>
     <textarea id="capText" class="i" rows="3" placeholder="Ej: 18 lucas en el súper y 2.500 de café" oninput="CAP.text=this.value">${esc(CAP.text)}</textarea>
     <button class="btn soft block" style="margin-top:8px" onclick="interpret()">Interpretar</button>`;
   if(m==='voice')body=`<button id="mic" class="mic" onclick="listen()" aria-label="Dictar gasto">🎙️</button>
@@ -584,20 +584,37 @@ function interpret(){
   if(!items.length){toast('No encontré un monto. Escríbelo con números, por ejemplo «18 lucas» o «18.000».');return}
   CAP.rows.push(...items);CAP.text='';$('#capText').value='';redrawLines();
 }
+function voiceFallback(msg){
+  const st=$('#micSt');if(!st)return;
+  st.innerHTML=esc(msg)+`<br><button class="btn soft sm" style="margin-top:8px" onclick="capMode('text');setTimeout(()=>$('#capText').focus(),80)">Dictar con el micrófono del teclado</button>`;
+}
 function listen(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;const st=$('#micSt');
-  if(!SR){st.textContent='Este navegador no tiene dictado. Usa «Escribir» y toca el micrófono de tu teclado.';return}
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){voiceFallback('Este navegador no permite dictar dentro de la app. Usa el micrófono de tu teclado: funciona igual.');return}
   if(REC){stopListen();return}
-  REC=new SR();REC.lang='es-CL';REC.interimResults=true;REC.maxAlternatives=1;
-  $('#mic').classList.add('rec');st.textContent='Te escucho…';
-  let finalT='';
-  REC.onresult=e=>{let tmp='';for(const r of e.results){if(r.isFinal)finalT=r[0].transcript;else tmp+=r[0].transcript}st.textContent=finalT||tmp||'Te escucho…'};
-  REC.onerror=e=>{st.textContent=e.error==='not-allowed'||e.error==='service-not-allowed'?'Permite el uso del micrófono para este sitio en la configuración del navegador.':'No te escuché bien. Toca el micrófono e intenta de nuevo.'};
-  REC.onend=()=>{const m=$('#mic');if(m)m.classList.remove('rec');REC=null;
+  const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
+  let finalT='',errored=false,started=false;
+  try{REC=new SR()}catch(e){voiceFallback('El dictado no está disponible en este teléfono.');return}
+  REC.lang='es-CL';REC.interimResults=true;REC.maxAlternatives=1;
+  $('#mic').classList.add('rec');$('#micSt').textContent='Activando el micrófono…';
+  const guard=setTimeout(()=>{if(!started){errored=true;stopListen();REC=null;const m=$('#mic');if(m)m.classList.remove('rec');
+    voiceFallback('El dictado no respondió en este teléfono. Puedes usar el micrófono del teclado.')}},4000);
+  REC.onstart=()=>{started=true;clearTimeout(guard);const st=$('#micSt');if(st)st.textContent='Te escucho… habla ahora.'};
+  REC.onresult=e=>{let tmp='';for(const r of e.results){if(r.isFinal)finalT=r[0].transcript;else tmp+=r[0].transcript}const st=$('#micSt');if(st)st.textContent=finalT||tmp||'Te escucho…'};
+  REC.onerror=e=>{errored=true;clearTimeout(guard);
+    const msgs={'not-allowed':'El teléfono no dio permiso al micrófono. Revisa los permisos del navegador para este sitio.',
+      'service-not-allowed':iOS?'En iPhone el dictado a veces no funciona con la app instalada. Ábrela en Safari o usa el micrófono del teclado.':'El servicio de dictado está desactivado en este teléfono.',
+      'audio-capture':'No se encontró un micrófono disponible. Puede que otra app lo esté usando.',
+      'network':'El dictado necesita internet y los servicios de voz de Google.',
+      'no-speech':'No escuché nada. Toca el micrófono y habla apenas se ponga rojo.',
+      'language-not-supported':'Este teléfono no tiene dictado en español instalado.'};
+    voiceFallback(msgs[e.error]||'No pude usar el dictado ('+e.error+').')};
+  REC.onend=()=>{clearTimeout(guard);const m=$('#mic');if(m)m.classList.remove('rec');REC=null;
     if(finalT){CAP.text=finalT;const items=parse(finalT);
       if(items.length){CAP.rows.push(...items);drawCapture(false)}
-      else{drawCapture(false);$('#micSt').textContent='Entendí la frase, pero no un monto. Di el valor, por ejemplo «18 lucas».'}}};
-  try{REC.start()}catch(e){REC=null}
+      else{drawCapture(false);$('#micSt').textContent='Entendí «'+finalT+'», pero no un monto. Di el valor, por ejemplo «18 lucas».'}}
+    else if(!errored)voiceFallback('No escuché nada. Toca el micrófono y habla apenas se ponga rojo.')};
+  try{REC.start()}catch(e){clearTimeout(guard);REC=null;$('#mic').classList.remove('rec');voiceFallback('No se pudo activar el dictado. Puedes usar el micrófono del teclado.')}
 }
 function stopListen(){if(REC){try{REC.stop()}catch(e){}}}
 function compress(file,max,q){return new Promise((res,rej)=>{const u=URL.createObjectURL(file),im=new Image();
