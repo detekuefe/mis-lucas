@@ -1,4 +1,4 @@
-# Mi Dinero
+# Mis lucas
 
 App personal de finanzas: cuánto puedes gastar hoy para llegar a tu meta del mes.
 
@@ -13,7 +13,7 @@ App personal de finanzas: cuánto puedes gastar hoy para llegar a tu meta del me
 - Laptop (Chrome o Edge): ícono de instalar en la barra de direcciones, o úsala como página normal.
 
 ## Actualizar
-Cambia los archivos y sube el número en la primera línea de `sw.js` (`mi-dinero-v2.2` → `mi-dinero-v2.3`).
+Cambia los archivos y sube el número en la primera línea de `sw.js` (`mis-lucas-v3.1` → `mis-lucas-v3.2`).
 Los datos de cada dispositivo no se pierden al actualizar.
 
 ## Datos
