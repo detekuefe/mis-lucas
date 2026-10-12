@@ -38,6 +38,10 @@ a{color:inherit}
 .brand{font-family:var(--display);font-weight:800;font-size:23px;letter-spacing:-.02em}
 .date{color:var(--muted);font-size:14px}
 .hidden{display:none!important}
+.sync{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:7px;vertical-align:1px}
+.sync[hidden]{display:none}
+.sync.ok{background:var(--green)}.sync.wait{background:#D9A02B}.sync.err{background:var(--red)}
+
 
 /* El héroe: lo único llamativo de la app */
 .hero{background:var(--green);color:#fff;border-radius:24px;padding:20px 20px 18px}
@@ -64,6 +68,9 @@ a{color:inherit}
 .btn.block{display:block;width:100%}
 .btn.sm{padding:8px 12px;font-size:14px;border-radius:10px}
 .btn:disabled{opacity:.45;cursor:default}
+.btn.gbtn{display:inline-flex;align-items:center;justify-content:center;gap:10px;background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btn.gbtn.block{display:flex}
+.btn.gbtn svg{width:18px;height:18px;flex:none}
 .linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;padding:4px 0;font-size:14px}
 
 .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
@@ -148,7 +155,7 @@ textarea.i{resize:vertical}
 </head>
 <body>
 <div class="app">
-  <header class="top"><div class="brand">Mi Dinero</div><div id="date" class="date"></div></header>
+  <header class="top"><div class="brand">Mi Dinero</div><div class="date"><span id="syncDot" class="sync" hidden></span><span id="date"></span></div></header>
   <main>
     <section id="v-hoy" class="view"></section>
     <section id="v-mov" class="view hidden"></section>
@@ -167,7 +174,7 @@ textarea.i{resize:vertical}
 
 <script>
 /* ===================== Utilidades ===================== */
-const KEY='mi_dinero_v2', IMG='mi_dinero_v2_img_', VERSION='2.0';
+const KEY='mi_dinero_v2', IMG='mi_dinero_v2_img_', VERSION='2.1';
 const CATS=[['Supermercado','🛒'],['Comida fuera','🍔'],['Transporte','🚌'],['Salud','💊'],['Hogar','🏠'],['Ocio','🎬'],['Compras','🛍️'],['Cuentas','🧾'],['Otros','📦']];
 const catIcon=c=>(CATS.find(x=>x[0]===c)||[0,'📦'])[1];
 const FMT=new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0});
@@ -191,18 +198,24 @@ const toNum=v=>{const n=Number(String(v??'').replace(/[^\d]/g,''));return isFini
 const sum=(a,f)=>a.reduce((x,m)=>x+f(m),0);
 
 /* ===================== Datos ===================== */
-function blank(){return{v:2,setup:false,created:todayStr(),balance:0,checked:null,goal:{name:'Ahorro del mes',amount:0},payday:1,movements:[],bills:[],paid:{},dayLog:{}}}
-function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.v===2)return Object.assign(blank(),s)}catch(e){}return blank()}
-let S=load();
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('No se pudo guardar: el almacenamiento está lleno. Exporta un respaldo y borra fotos de boletas antiguas.')}}
-
-// Efecto de cada movimiento sobre el saldo
+// Efecto de cada movimiento sobre el saldo. El saldo siempre se calcula: saldo inicial + movimientos.
+// Así dos dispositivos sincronizados nunca se pisan el saldo entre sí.
 const eff=m=>m.type==='expense'?-m.amount:m.type==='income'?m.amount:m.type==='adjust'?m.amount:0;
-function addMov(m){m.id=m.id||uid();m.at=Date.now();S.movements.push(m);S.balance+=eff(m);return m}
+function blank(){return{v:2,setup:false,created:todayStr(),opening:0,balance:0,checked:null,goal:{name:'Ahorro del mes',amount:0},payday:1,movements:[],bills:[],dayLog:{}}}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.v===2){
+  const r=Object.assign(blank(),s);
+  if(s.opening===undefined)r.opening=(s.balance||0)-sum(r.movements,eff);
+  if(r.paid){for(const k in r.paid)for(const b in r.paid[k]){const m=r.movements.find(x=>x.id===r.paid[k][b]);if(m)m.billPeriod=k}delete r.paid}
+  return r}}catch(e){}return blank()}
+let S=load();
+function recalc(){S.balance=(S.opening||0)+sum(S.movements,eff)}
+recalc();
+function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('No se pudo guardar: el almacenamiento está lleno. Exporta un respaldo y borra fotos de boletas antiguas.')}}
+function save(){saveLocal();if(window.MD_SYNC)window.MD_SYNC.push()}
+function addMov(m){m.id=m.id||uid();m.at=Date.now();S.movements.push(m);recalc();return m}
 function delMov(id){
   const i=S.movements.findIndex(x=>x.id===id);if(i<0)return;
-  const m=S.movements[i];S.balance-=eff(m);S.movements.splice(i,1);
-  if(m.billId)for(const k in S.paid)if(S.paid[k][m.billId]===id)delete S.paid[k][m.billId];
+  const m=S.movements[i];S.movements.splice(i,1);recalc();
   if(m.img)try{localStorage.removeItem(IMG+id)}catch(e){}
 }
 
@@ -224,9 +237,10 @@ function billDue(b,P){
   if(ymd(d)<P.start)d=at(s.getFullYear(),s.getMonth()+1);
   return ymd(d);
 }
-function billPaid(b,P){const id=(S.paid[P.key]||{})[b.id];return id?S.movements.find(m=>m.id===id):null}
+function billPaid(b,P){return S.movements.find(m=>m.billId===b.id&&m.billPeriod===P.key)||null}
 
 function calc(){
+  recalc();
   const P=period(),t=todayStr();
   const inP=m=>m.date>=P.start&&m.date<=P.end;
   let pending=0,paidTodayEst=0,paidTotal=0,estTotal=0;
@@ -460,6 +474,7 @@ function renderCue(c){
 function renderAju(c){
   const days=Array.from({length:28},(_,i)=>i+1);
   $('#v-aju').innerHTML=`<div class="cols"><div>
+    <section class="card" id="syncBox">${syncCardHTML()}</section>
     <section class="card"><h2>Saldo</h2>
       <div class="row kv"><span class="muted">Saldo registrado</span><b class="num">${money(S.balance)}</b></div>
       <div class="small muted" style="margin-bottom:10px">${S.checked?`Comparado con tu banco el ${nice(S.checked)}.`:'Aún no lo comparas con tu banco.'}</div>
@@ -515,13 +530,14 @@ function onboarding(){
     <select id="ob3" class="i">${Array.from({length:28},(_,i)=>`<option>${i+1}</option>`).join('')}</select>
     <div class="small muted" style="margin-top:6px">Si recibes ingresos variables, deja el 1: el período será el mes calendario.</div>
     <button class="btn block" style="margin-top:18px" onclick="finishSetup()">Empezar</button>
+    ${window.MD_SYNC&&!MD_SYNC.user?`<button class="btn gbtn block" style="margin-top:10px" onclick="MD_SYNC.login()">${GLOGO}Ya uso Mi Dinero: iniciar sesión con Google</button>`:''}
     <button class="linkbtn" style="display:block;margin:10px auto 0" onclick="$('#obImp').click()">Tengo un respaldo para importar</button>
     <input id="obImp" type="file" accept="application/json,.json" hidden onchange="importData(this)">`);
 }
 function finishSetup(){
   const bal=toNum($('#ob1').value);
   if(!$('#ob1').value.trim()){toast('Indica tu saldo disponible para poder calcular tu plan.');return}
-  S.balance=bal;S.goal.amount=toNum($('#ob2').value);S.payday=Number($('#ob3').value)||1;S.setup=true;S.created=todayStr();S.checked=todayStr();
+  S.opening=bal;S.goal.amount=toNum($('#ob2').value);S.payday=Number($('#ob3').value)||1;S.setup=true;S.created=todayStr();S.checked=todayStr();
   save();closeSheet();render();toast('Listo. Agrega tus cuentas mensuales en la pestaña Cuentas.');
 }
 
@@ -699,12 +715,12 @@ function openMov(id){
       <label class="f" for="mvF">Fecha</label><input id="mvF" class="i" type="date" value="${m.date}">`
     :`<div class="row kv"><span class="muted">Monto</span><b class="num">${money(Math.abs(m.amount))}</b></div><div class="row kv"><span class="muted">Fecha</span><b>${nice(m.date)}</b></div><div class="row kv"><span class="muted">Detalle</span><b>${esc(m.desc)}</b></div>`}
     ${m.billId?`<div class="note warn">Es el pago de una cuenta mensual. Si lo eliminas, la cuenta vuelve a quedar pendiente.</div>`:''}
-    ${img?`<div class="preview"><img src="${img}" alt="Boleta"></div>`:''}
+    ${img?`<div class="preview"><img src="${img}" alt="Boleta"></div>`:m.img?`<div class="note good">La foto de esta boleta está guardada en el dispositivo donde la tomaste.</div>`:''}
     ${btns(`<button class="btn danger" onclick="removeMov('${id}')">Eliminar</button>`,editable?`<button class="btn" style="flex:1" onclick="editMov('${id}')">Guardar cambios</button>`:`<button class="btn line" style="flex:1" onclick="closeSheet()">Cerrar</button>`)}`);
 }
 function editMov(id){
   const m=S.movements.find(x=>x.id===id);const a=toNum($('#mvA').value);if(!a){toast('El monto no puede quedar en cero.');return}
-  S.balance-=eff(m);m.amount=a;m.desc=$('#mvD').value.trim()||m.desc;if($('#mvC'))m.cat=$('#mvC').value;m.date=$('#mvF').value||m.date;S.balance+=eff(m);
+  m.amount=a;m.desc=$('#mvD').value.trim()||m.desc;if($('#mvC'))m.cat=$('#mvC').value;m.date=$('#mvF').value||m.date;recalc();
   save();closeSheet();render();toast('Cambios guardados.');
 }
 function removeMov(id){if(!confirm('¿Eliminar este movimiento?'))return;delMov(id);save();closeSheet();render();toast('Movimiento eliminado.')}
@@ -728,7 +744,7 @@ function saveBill(id){
   save();closeSheet();render();toast(id?'Cuenta actualizada.':'Cuenta agregada.');
 }
 function delBill(id){if(!confirm('¿Eliminar esta cuenta? Los pagos ya registrados se mantienen en tus movimientos.'))return;
-  S.bills=S.bills.filter(x=>x.id!==id);for(const k in S.paid)delete S.paid[k][id];save();closeSheet();render()}
+  S.bills=S.bills.filter(x=>x.id!==id);save();closeSheet();render()}
 function openPay(id){
   const b=S.bills.find(x=>x.id===id);
   sheet(`<h3>Pagar ${esc(b.name)}</h3>${amtField('pA','Monto pagado',b.amount)}
@@ -738,8 +754,7 @@ function openPay(id){
 function payBill(id){
   const b=S.bills.find(x=>x.id===id),a=toNum($('#pA').value);if(!a){toast('Indica el monto pagado.');return}
   const P=period();
-  const m=addMov({type:'expense',amount:a,date:$('#pF').value||todayStr(),cat:'Cuentas',desc:b.name,billId:id,src:'cuenta'});
-  (S.paid[P.key]=S.paid[P.key]||{})[id]=m.id;
+  const m=addMov({type:'expense',amount:a,date:$('#pF').value||todayStr(),cat:'Cuentas',desc:b.name,billId:id,billPeriod:P.key,src:'cuenta'});
   save();closeSheet();render();toast(`${b.name} pagada.`,undo([m.id]));
 }
 function unpay(id){const m=billPaid(S.bills.find(x=>x.id===id),period());if(m){delMov(m.id);save();render();toast('La cuenta volvió a quedar pendiente.')}}
@@ -763,16 +778,204 @@ function importData(inp){
   }catch(e){toast('Ese archivo no es un respaldo de Mi Dinero 2.')}};
   r.readAsText(f);inp.value='';
 }
-function resetAll(){
-  if(!confirm('¿Borrar todos los datos de Mi Dinero en este dispositivo?'))return;
+async function resetAll(){
+  const cloud=window.MD_SYNC&&MD_SYNC.user;
+  if(!confirm(cloud?'¿Borrar todos los datos de Mi Dinero? Como tienes la sesión iniciada, se borrarán también de la nube y de tus otros dispositivos.':'¿Borrar todos los datos de Mi Dinero en este dispositivo?'))return;
   if(!confirm('Esta acción no se puede deshacer. ¿Seguro?'))return;
+  if(cloud)await MD_SYNC.wipe();
   Object.keys(localStorage).filter(k=>k.startsWith(KEY)).forEach(k=>localStorage.removeItem(k));location.reload();
+}
+
+/* ===================== Sincronización (interfaz) ===================== */
+const GLOGO='<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.5-5 2.3-8.2 2.3-6.2 0-11.5-4.1-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
+const SYNCTXT={off:['','Sin sesión'],connecting:['wait','Conectando…'],pending:['wait','Guardando en la nube…'],offline:['wait','Sin conexión. Se sincroniza cuando vuelva internet.'],ok:['ok','Sincronizado'],error:['err','No se pudo sincronizar']};
+function syncCardHTML(){
+  const s=window.MD_SYNC;
+  if(!s)return`<h2>Sincronización</h2><p class="small muted" style="margin:0">No se pudo cargar la sincronización (puede ser falta de internet al abrir la app). Tus datos siguen guardados en este dispositivo.</p>`;
+  if(!s.user)return`<h2>Sincronización</h2><p class="small muted" style="margin-top:0">Inicia sesión para ver los mismos datos en tu teléfono y en tu laptop. Si no inicias sesión, todo queda solo en este dispositivo.</p>
+    <button class="btn gbtn" onclick="MD_SYNC.login()">${GLOGO}Iniciar sesión con Google</button>`;
+  const [k,t]=SYNCTXT[s.state]||['',''];
+  return`<h2>Sincronización</h2>
+    <div class="row kv"><span class="muted">Cuenta</span><b style="overflow:hidden;text-overflow:ellipsis">${esc(s.user.email||'')}</b></div>
+    <div class="row kv"><span class="muted">Estado</span><span><span class="sync ${k}"></span>${t}</span></div>
+    ${s.error?`<div class="note bad">${esc(s.error)}</div>`:''}
+    <p class="small muted">Lo que registres aquí aparece en tus otros dispositivos con la misma cuenta. Las fotos de boletas quedan solo en el equipo donde las tomaste.</p>
+    <button class="btn line sm" onclick="MD_SYNC.logout()">Cerrar sesión</button>`;
+}
+function syncUI(){
+  const s=window.MD_SYNC,d=$('#syncDot');
+  if(d){const[k,t]=s&&s.user?(SYNCTXT[s.state]||['','']):['',''];d.className='sync '+k;d.title=t;d.setAttribute('aria-label',t);d.hidden=!(s&&s.user)}
+  const b=$('#syncBox');if(b)b.innerHTML=syncCardHTML();
+}
+// La nube trajo cambios: actualizar pantalla sin pisar lo que el usuario está escribiendo
+function syncApplied(){
+  if(!S.setup){if(!LOCK)render();return}
+  if(LOCK)closeSheet();
+  if(!$('#sheetBg').classList.contains('open'))render();else{const c=calc();({hoy:renderHoy,mov:renderMov,cue:renderCue,aju:renderAju})[TAB](c)}
 }
 
 /* ===================== Inicio ===================== */
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!$('#sheetBg').classList.contains('open'))render()});
 render();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+<script type="module">
+/* ===================== Sincronización con Firebase ===================== */
+import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,onAuthStateChanged,signOut} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const firebaseConfig={
+  apiKey:"AIzaSyDrcSzvnYhr8p9fiUcoRnmdzlGwdFrF_qw",
+  authDomain:"mis-lucas-c6c6a.firebaseapp.com",
+  projectId:"mis-lucas-c6c6a",
+  storageBucket:"mis-lucas-c6c6a.firebasestorage.app",
+  messagingSenderId:"803568074607",
+  appId:"1:803568074607:web:2b2e7ae312836c8fedf29a"
+};
+const app=initializeApp(firebaseConfig),auth=getAuth(app);
+let db;
+try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})})}
+catch(e){db=initializeFirestore(app,{})}
+
+const SK='md_sync_v2';            // lo último que este dispositivo sabe que está en la nube
+const clean=o=>JSON.parse(JSON.stringify(o));
+const sortK=o=>Array.isArray(o)?o.map(sortK):o&&typeof o==='object'?Object.keys(o).sort().reduce((r,k)=>(r[k]=sortK(o[k]),r),{}):o;
+const J=o=>o==null?null:JSON.stringify(sortK(o));
+const stateOf=()=>clean({setup:S.setup,created:S.created,opening:S.opening,checked:S.checked,goal:S.goal,payday:S.payday,dayLog:S.dayLog});
+
+let prev=(()=>{try{return JSON.parse(localStorage.getItem(SK))||{}}catch(e){return{}}})();
+const savePrev=()=>{try{localStorage.setItem(SK,JSON.stringify(prev))}catch(e){}};
+let uid=null,unsubs=[],server=null,got={},meta={},busy=false,again=false,timer=null;
+
+const MD=window.MD_SYNC={user:null,state:'off',error:'',login,logout,push,wipe};
+
+function setState(){
+  if(!uid)MD.state='off';
+  else if(MD.error)MD.state='error';
+  else if(!navigator.onLine)MD.state='offline';
+  else if(!(got.m&&got.b&&got.s)||meta.s.fromCache)MD.state='connecting';
+  else if(meta.m.hasPendingWrites||meta.b.hasPendingWrites||meta.s.hasPendingWrites)MD.state='pending';
+  else MD.state='ok';
+  syncUI();
+}
+addEventListener('online',setState);addEventListener('offline',setState);
+
+function fail(e){
+  MD.error=e&&e.code==='permission-denied'?'Firebase rechazó el acceso. Revisa las reglas de Firestore.':'Error de conexión con la nube ('+(e&&e.code||e)+').';
+  setState();
+}
+
+function stop(){unsubs.forEach(u=>u());unsubs=[];uid=null;server=null;got={};meta={}}
+function start(u){
+  stop();uid=u.uid;server={m:{},b:{},s:null};MD.error='';
+  if(prev.uid!==uid)prev={uid,m:{},b:{},s:null};
+  const opts={includeMetadataChanges:true};
+  unsubs.push(onSnapshot(collection(db,'users',uid,'movements'),opts,q=>{server.m={};q.forEach(d=>server.m[d.id]=d.data());meta.m=q.metadata;got.m=true;tick()},fail));
+  unsubs.push(onSnapshot(collection(db,'users',uid,'bills'),opts,q=>{server.b={};q.forEach(d=>server.b[d.id]=d.data());meta.b=q.metadata;got.b=true;tick()},fail));
+  unsubs.push(onSnapshot(doc(db,'users',uid,'meta','state'),opts,d=>{server.s=d.exists()?d.data():null;meta.s=d.metadata;got.s=true;tick()},fail));
+  setState();
+}
+function tick(){
+  if(got.m&&got.b&&got.s){
+    const first=prev.s==null&&!Object.keys(prev.m).length&&!Object.keys(prev.b).length;
+    // La primera vez en un dispositivo esperamos la respuesta real del servidor, no la caché
+    if(!(first&&(meta.m.fromCache||meta.b.fromCache||meta.s.fromCache)))reconcile();
+  }
+  setState();
+}
+function push(){clearTimeout(timer);timer=setTimeout(()=>{if(uid&&got.m&&got.b&&got.s)reconcile()},250)}
+
+// Une lo local con la nube. Regla: si algo cambió aquí desde la última sincronización, se sube;
+// si no, manda lo que hay en la nube. Lo borrado en un lado se borra en el otro.
+function reconcile(){
+  if(busy){again=true;return}
+  busy=true;
+  try{
+    const first=prev.s==null&&!Object.keys(prev.m).length&&!Object.keys(prev.b).length;
+    if(first&&S.setup&&server.s&&server.s.setup&&(S.movements.length||S.bills.length)){
+      if(confirm('Tu cuenta ya tiene datos de otro dispositivo.\n\nAceptar: usar los datos de tu cuenta y descartar los de este equipo.\nCancelar: combinar ambos.')){S.movements=[];S.bills=[]}
+    }
+    const writes=[];let changed=false;
+    const merge=(arr,srv,pm,kind)=>{
+      const L=Object.fromEntries(arr.map(x=>[x.id,x])),out=[],np={};
+      for(const id of new Set([...Object.keys(L),...Object.keys(srv)])){
+        const l=L[id],r=srv[id],p=pm[id],lj=l?J(clean(l)):null,rj=r?J(r):null;
+        if(l&&r){
+          if(lj===rj){out.push(l);np[id]=rj}
+          else if(lj!==p){out.push(l);np[id]=lj;writes.push(['set',kind,id,clean(l)])}
+          else{out.push(r);np[id]=rj;changed=true}
+        }else if(l){
+          if(p!==undefined)changed=true;                       // se borró en otro dispositivo
+          else{out.push(l);np[id]=lj;writes.push(['set',kind,id,clean(l)])}
+        }else{
+          if(p!==undefined&&p===rj)writes.push(['del',kind,id]); // se borró aquí
+          else{out.push(r);np[id]=rj;changed=true}
+        }
+      }
+      return[out,np];
+    };
+    const[mo,mp]=merge(S.movements,server.m,prev.m,'movements');
+    const[bo,bp]=merge(S.bills,server.b,prev.b,'bills');
+    S.movements=mo;S.bills=bo;
+    const ls=stateOf(),lsj=J(ls),rs=server.s,rsj=rs?J(rs):null;let ns;
+    const take=()=>{Object.assign(S,{setup:!!rs.setup,created:rs.created||S.created,opening:rs.opening||0,checked:rs.checked||null,goal:rs.goal||{name:'Ahorro del mes',amount:0},payday:rs.payday||1,dayLog:rs.dayLog||{}});ns=rsj;changed=true};
+    if(!rs){if(S.setup){writes.push(['state',ls]);ns=lsj}else ns=null}
+    else if(lsj===rsj)ns=rsj;
+    else if(!S.setup||prev.s==null)take();
+    else if(lsj!==prev.s){writes.push(['state',ls]);ns=lsj}
+    else take();
+    prev={uid,m:mp,b:bp,s:ns};savePrev();
+    for(const w of writes){if(w[0]==='set')server[w[1]==='movements'?'m':'b'][w[2]]=w[3];else if(w[0]==='del')delete server[w[1]==='movements'?'m':'b'][w[2]];else server.s=w[1]}
+    recalc();saveLocal();
+    if(writes.length)commit(writes);
+    if(changed)syncApplied();
+  }catch(e){console.error(e)}
+  busy=false;
+  if(again){again=false;push()}
+}
+function commit(writes){
+  const ps=[];
+  for(let i=0;i<writes.length;i+=400){
+    const b=writeBatch(db);
+    writes.slice(i,i+400).forEach(w=>{
+      if(w[0]==='set')b.set(doc(db,'users',uid,w[1],w[2]),w[3]);
+      else if(w[0]==='del')b.delete(doc(db,'users',uid,w[1],w[2]));
+      else if(w[0]==='state')b.set(doc(db,'users',uid,'meta','state'),w[1]);
+      else if(w[0]==='delstate')b.delete(doc(db,'users',uid,'meta','state'));
+    });
+    ps.push(b.commit().catch(fail));
+  }
+  return Promise.all(ps);
+}
+async function wipe(){
+  if(!uid||!server)return;
+  const w=[...Object.keys(server.m).map(id=>['del','movements',id]),...Object.keys(server.b).map(id=>['del','bills',id]),['delstate']];
+  const p=commit(w);stop();
+  await Promise.race([p,new Promise(r=>setTimeout(r,4000))]);
+  prev={};savePrev();
+}
+
+
+async function login(){
+  const prov=new GoogleAuthProvider();prov.setCustomParameters({prompt:'select_account'});
+  try{await signInWithPopup(auth,prov)}
+  catch(e){
+    if(e.code==='auth/popup-blocked'||e.code==='auth/operation-not-supported-in-this-environment')return signInWithRedirect(auth,prov);
+    if(e.code==='auth/popup-closed-by-user'||e.code==='auth/cancelled-popup-request')return;
+    toast(e.code==='auth/unauthorized-domain'?'Este sitio no está autorizado en Firebase. Agrégalo en Authentication → Configuración → Dominios autorizados.':e.code==='auth/network-request-failed'?'Sin conexión. Inicia sesión cuando tengas internet.':'No se pudo iniciar sesión ('+e.code+').');
+  }
+}
+async function logout(){if(!confirm('¿Cerrar sesión? Tus datos se quedan en este dispositivo, pero dejarán de sincronizarse.'))return;await signOut(auth)}
+
+getRedirectResult(auth).catch(()=>{});
+onAuthStateChanged(auth,u=>{
+  MD.user=u?{email:u.email,name:u.displayName}:null;
+  if(u){start(u);if(!S.setup&&LOCK)onboarding();}else{stop();setState()}
+  if(u&&!S.setup)toast('Sesión iniciada. Buscando tus datos…');
+});
+if(!S.setup&&LOCK)onboarding();
+syncUI();
 </script>
 </body>
 </html>

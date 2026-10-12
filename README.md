@@ -13,8 +13,8 @@ App personal de finanzas: cuánto puedes gastar hoy para llegar a tu meta del me
 - Laptop (Chrome o Edge): ícono de instalar en la barra de direcciones, o úsala como página normal.
 
 ## Actualizar
-Cambia los archivos y sube el número en la primera línea de `sw.js` (`mi-dinero-v2.0` → `mi-dinero-v2.1`).
+Cambia los archivos y sube el número en la primera línea de `sw.js` (`mi-dinero-v2.1` → `mi-dinero-v2.2`).
 Los datos de cada dispositivo no se pierden al actualizar.
 
 ## Datos
-Todo se guarda en el navegador de cada dispositivo (no hay servidor). Usa Ajustes → Exportar respaldo.
+Sin sesión, todo queda en el navegador de cada dispositivo. Con sesión de Google (Ajustes → Sincronización), los datos se guardan en Firebase (proyecto mis-lucas-c6c6a) y se comparten entre tus dispositivos. Las fotos de boletas quedan solo en el equipo donde se tomaron.
