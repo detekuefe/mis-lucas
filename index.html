@@ -206,6 +206,17 @@ nav.tabs button.on{color:var(--green-ink);background:var(--mint);font-weight:700
 .catrow .bar{margin:6px 0 0}
 .catrow small{color:var(--muted);font-weight:600;margin-left:6px}
 
+.lock{position:fixed;inset:0;z-index:70;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:calc(24px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));overflow:auto}
+.lock .box{width:100%;max-width:380px;margin:auto}
+.lock .logo{display:block;margin:0 auto 14px;border-radius:18px}
+.lock h1{font-family:var(--display);font-size:24px;text-align:center;margin:0 0 6px;letter-spacing:-.02em}
+.lock .lead{text-align:center;color:var(--muted);margin:0 0 14px;font-size:15px}
+.lock .btn.block{margin-top:6px}
+.chk{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:14.5px;cursor:pointer}
+.chk input{width:18px;height:18px;accent-color:var(--green)}
+.err{color:var(--red);font-size:14px;min-height:20px;margin-top:8px}
+.pwrow{position:relative}.pwrow .i{padding-right:46px}
+.pwrow button{position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:0;color:var(--muted);font-size:20px;padding:8px;cursor:pointer;line-height:1}
 .sheet-bg{position:fixed;inset:0;background:rgb(8 22 15/.5);display:none;align-items:flex-end;justify-content:center;z-index:40}
 .sheet-bg.open{display:flex}
 .sheet{background:var(--surface);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:28px 28px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom,0px))}
@@ -280,11 +291,12 @@ textarea.i{resize:vertical}
   <button data-t="aju" onclick="go('aju')"><i class="pi ph-duotone ph-gear-six" aria-hidden="true"></i>Ajustes</button>
 </nav>
 <div id="sheetBg" class="sheet-bg" onclick="if(event.target===this&&!LOCK)closeSheet()"><div id="sheet" class="sheet" role="dialog" aria-modal="true"></div></div>
+<div id="lock" class="lock" aria-live="polite"></div>
 <div id="toast" class="toast" role="status"><span id="toastMsg"></span><button id="toastBtn"></button></div>
 
 <script>
 /* ===================== Utilidades ===================== */
-const KEY='mi_dinero_v2', IMG='mi_dinero_v2_img_', VERSION='3.3';
+const KEY='mi_dinero_v2', IMG='mi_dinero_v2_img_', VERSION='3.4';
 const CATS=[['Supermercado','shopping-cart'],['Comida fuera','fork-knife'],['Transporte','bus'],['Salud','pill'],['Hogar','house'],['Ocio','popcorn'],['Compras','shopping-bag'],['Cuentas','invoice'],['Otros','package']];
 const ico=n=>`<i class="pi ph-duotone ph-${n}" aria-hidden="true"></i>`;
 const catIcon=c=>ico((CATS.find(x=>x[0]===c)||[0,'package'])[1]);
@@ -312,20 +324,204 @@ const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const toNum=v=>{const n=Number(String(v??'').replace(/[^\d]/g,''));return isFinite(n)?n:0};
 const sum=(a,f)=>a.reduce((x,m)=>x+f(m),0);
 
+/* ===================== Cifrado ===================== */
+// Todo lo que se guarda, en el equipo y en la nube, va cifrado con AES-256-GCM.
+// La llave sale de la clave del usuario (PBKDF2, 600.000 vueltas) y nunca se guarda en texto ni sale del dispositivo.
+const CK=KEY+'_clave', ITER=600000, CHECK='mis-lucas';
+const TE=new TextEncoder(),TD=new TextDecoder();
+const b64=a=>{let s='';for(let i=0;i<a.length;i+=32768)s+=String.fromCharCode.apply(null,a.subarray(i,i+32768));return btoa(s)};
+const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const isEnc=s=>typeof s==='string'&&s.startsWith('enc1:');
+const CRYPT=window.CRYPT={key:null,oldKey:null,meta:null,remember:false};
+async function deriveKey(pass,meta){
+  const base=await crypto.subtle.importKey('raw',TE.encode(pass),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt:unb64(meta.salt),iterations:meta.iter||ITER,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+}
+async function encBytes(key,bytes){
+  const iv=crypto.getRandomValues(new Uint8Array(12)),ct=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},key,bytes)),o=new Uint8Array(12+ct.length);
+  o.set(iv);o.set(ct,12);return 'enc1:'+b64(o);
+}
+async function decBytes(key,s){const a=unb64(s.slice(5));return new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:a.subarray(0,12)},key,a.subarray(12)))}
+const encStr=(key,t)=>encBytes(key,TE.encode(t));
+const decStr=async(key,s)=>TD.decode(await decBytes(key,s));
+async function newMeta(pass){
+  const meta={v:1,iter:ITER,salt:b64(crypto.getRandomValues(new Uint8Array(16)))},key=await deriveKey(pass,meta);
+  meta.check=await encStr(key,CHECK);return{key,meta};
+}
+async function tryPass(pass,meta){try{const key=await deriveKey(pass,meta);return await decStr(key,meta.check)===CHECK?key:null}catch(e){return null}}
+const readMeta=()=>{try{const m=JSON.parse(localStorage.getItem(CK));return m&&m.salt&&m.check?m:null}catch(e){return null}};
+const passErr=(p,q)=>p.length<8?'La clave debe tener al menos 8 caracteres.':!/[a-záéíóúñ]/i.test(p)||!/\d/.test(p)?'Usa letras y números.':p!==q?'Las claves no coinciden.':'';
+// Fotos de boletas: se cifran los bytes de la imagen (no el texto base64) para no ocupar más espacio
+async function putImg(id,url){
+  try{const[,mime,data]=url.match(/^data:([^;,]+);base64,(.*)$/);localStorage.setItem(IMG+id,mime+','+await encBytes(CRYPT.key,unb64(data)));return true}catch(e){return false}
+}
+async function getImg(id){
+  const v=localStorage.getItem(IMG+id);if(!v)return null;if(v.startsWith('data:'))return v;
+  const i=v.indexOf(',');try{return 'data:'+v.slice(0,i)+';base64,'+b64(await decBytes(CRYPT.key,v.slice(i+1)))}catch(e){return null}
+}
+// "Recordar en este dispositivo": la llave queda en IndexedDB como objeto no exportable (se puede usar, no leer)
+function idb(mode,fn){return new Promise((res,rej)=>{const r=indexedDB.open('mis_lucas',1);
+  r.onupgradeneeded=()=>r.result.createObjectStore('k');r.onerror=()=>rej(r.error);
+  r.onsuccess=()=>{const t=r.result.transaction('k',mode),q=fn(t.objectStore('k'));t.oncomplete=()=>{r.result.close();res(q&&q.result)};t.onerror=()=>rej(t.error)}})}
+const keyGet=()=>idb('readonly',s=>s.get('llave')).catch(()=>null);
+const keyPut=v=>idb('readwrite',s=>s.put(v,'llave')).catch(()=>{});
+const keyDel=()=>idb('readwrite',s=>s.delete('llave')).catch(()=>{});
+
+// Activa una llave: abre los datos guardados con ella, o re-cifra todo si veníamos de otra llave o de datos sin cifrar
+async function useKey(key,meta,remember){
+  const changed=!!CRYPT.key,pics={};
+  for(const k of Object.keys(localStorage).filter(k=>k.startsWith(IMG))){const id=k.slice(IMG.length);if(changed||localStorage.getItem(k).startsWith('data:'))pics[id]=await getImg(id)}
+  if(!changed){const raw=localStorage.getItem(KEY);S=raw?load(isEnc(raw)?await decStr(key,raw):raw):blank();recalc()}
+  if(changed&&CRYPT.key!==key)CRYPT.oldKey=CRYPT.key;
+  CRYPT.key=key;CRYPT.meta=meta;localStorage.setItem(CK,JSON.stringify(meta));
+  for(const id in pics)if(pics[id])await putImg(id,pics[id]);
+  saveLocal();
+  if(remember!==undefined)CRYPT.remember=remember;
+  if(CRYPT.remember)await keyPut({salt:meta.salt,key});else await keyDel();
+}
+function wipeLocal(){Object.keys(localStorage).filter(k=>k.startsWith(KEY)||k==='md_sync_v2').forEach(k=>localStorage.removeItem(k))}
+
+/* ----- Pantalla de clave ----- */
+let LOCKMODE=null,ACCT=null,ACCT_EMAIL='',ACCT_RES=null;
+window.RESET_CLOUD=false;
+async function boot(){
+  CRYPT.meta=readMeta();
+  if(CRYPT.meta){const r=await keyGet();
+    if(r&&r.key&&r.salt===CRYPT.meta.salt){try{CRYPT.remember=true;await useKey(r.key,CRYPT.meta);return unlocked()}catch(e){CRYPT.remember=false}}}
+  lockScreen(CRYPT.meta?'unlock':'create');
+}
+function unlocked(){LOCKMODE=null;ACCT=null;$('#lock').classList.add('hidden');$('#lock').innerHTML='';render();if(window.MD_SYNC)MD_SYNC.keyReady()}
+function lockScreen(mode){
+  LOCKMODE=mode;const L=$('#lock');L.classList.remove('hidden');
+  const legacy=!CRYPT.meta&&!!localStorage.getItem(KEY),create=mode==='create',user=window.MD_SYNC&&MD_SYNC.user;
+  const [h,t]={
+    create:['Crea tu clave',window.RESET_CLOUD?'Crea una clave nueva. Al entrar se borrarán los datos que quedaron en la nube con la clave anterior.':legacy?'Ahora Mis lucas guarda tus datos cifrados. Crea una clave para protegerlos: te la pediremos al abrir la app.':'Tus datos se guardarán cifrados con esta clave. Te la pediremos al abrir la app.'],
+    unlock:['Hola de nuevo','Escribe tu clave para abrir Mis lucas.'],
+    account:['Escribe tu clave',`Tu cuenta ${esc(ACCT_EMAIL)} ya tiene una clave. Escríbela para ver tus datos en este equipo.`]
+  }[mode];
+  L.innerHTML=`<form class="box" onsubmit="event.preventDefault();lockSubmit()" novalidate>
+    <img class="logo" src="icon-192.png" alt="" width="64" height="64">
+    <h1>${h}</h1><p class="lead">${t}</p>
+    <input type="text" name="username" autocomplete="username" value="${esc(mode==='account'?ACCT_EMAIL:(user&&user.email)||'Mis lucas')}" hidden>
+    <label class="f" for="lk1">${create?'Clave nueva':'Clave'}</label>
+    <div class="pwrow"><input id="lk1" class="i" type="password" autocomplete="${create?'new-password':'current-password'}" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="button" onclick="peek('lk1',this)" aria-label="Mostrar clave">${ico('eye')}</button></div>
+    ${create?`<div class="small muted" style="margin-top:6px">Al menos 8 caracteres, con letras y números.</div>
+      <label class="f" for="lk2">Repite la clave</label><input id="lk2" class="i" type="password" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false">`:''}
+    <label class="chk"><input id="lkR" type="checkbox"> Recordar en este dispositivo</label>
+    <div id="lkE" class="err" role="alert"></div>
+    <button id="lkB" class="btn block" type="submit">${create?'Crear clave':'Abrir'}</button>
+    ${create?`<div class="note warn">Anota tu clave en un lugar seguro. Si la olvidas, nadie puede recuperar tus datos.</div>`:''}
+    ${create&&!user&&!window.RESET_CLOUD?`<button type="button" class="btn gbtn block" style="margin-top:14px" onclick="window.MD_SYNC?MD_SYNC.login():$('#lkE').textContent='Sin conexión: no se puede iniciar sesión ahora.'">${GLOGO}Ya uso Mis lucas en otro equipo</button>`:''}
+    ${create?'':`<button type="button" class="linkbtn" style="display:block;margin:14px auto 0" onclick="forgotKey()">Olvidé mi clave</button>`}
+  </form>`;
+  setTimeout(()=>{const i=$('#lk1');if(i)i.focus()},60);
+}
+function peek(id,b){const i=$('#'+id),show=i.type==='password';i.type=show?'text':'password';b.innerHTML=ico(show?'eye-slash':'eye');b.setAttribute('aria-label',show?'Ocultar clave':'Mostrar clave')}
+async function lockSubmit(){
+  const mode=LOCKMODE,p=$('#lk1').value,e=$('#lkE'),b=$('#lkB'),rem=$('#lkR').checked,label=b.textContent;e.textContent='';
+  if(mode==='create'){const x=passErr(p,$('#lk2').value);if(x){e.textContent=x;return}}else if(!p){e.textContent='Escribe tu clave.';return}
+  b.disabled=true;b.textContent=mode==='create'?'Creando…':'Abriendo…';
+  try{
+    if(mode==='create'){const{key,meta}=await newMeta(p);await useKey(key,meta,rem)}
+    else{const meta=mode==='account'?ACCT:CRYPT.meta,key=await tryPass(p,meta);if(!key)throw 'bad';await useKey(key,meta,rem)}
+    unlocked();
+  }catch(x){e.textContent=x==='bad'?'Esa clave no es correcta.':'No se pudieron abrir los datos ('+(x&&x.message||x)+').';b.disabled=false;b.textContent=label}
+}
+function forgotKey(){
+  if(LOCKMODE==='account'){
+    if(!confirm('Sin la clave no se pueden leer los datos guardados en tu cuenta. ¿Borrarlos de la nube y empezar de cero con una clave nueva?'))return;
+    window.RESET_CLOUD=true;ACCT=null;lockScreen('create');return;
+  }
+  if(!confirm('Sin tu clave nadie puede recuperar los datos. ¿Borrar los datos de este dispositivo y empezar de nuevo?'))return;
+  if(!confirm('Esta acción no se puede deshacer. ¿Seguro?'))return;
+  wipeLocal();keyDel().then(()=>location.reload());
+}
+// La nube avisa que la cuenta ya tiene clave (o se cerró la sesión) mientras la app sigue bloqueada
+function lockAccount(ck,email){if(LOCKMODE==='create'&&!window.RESET_CLOUD){ACCT=ck;ACCT_EMAIL=email||'';lockScreen('account')}}
+function lockAuth(){if(LOCKMODE==='account'||LOCKMODE==='create')lockScreen('create')}
+// Ya abierta, pero este equipo usa otra clave que la cuenta: pedir la de la cuenta
+function askAccountKey(ck,email){
+  return new Promise(res=>{
+    ACCT=ck;ACCT_RES=res;
+    sheet(`<h3>Clave de tu cuenta</h3>
+      <p class="muted" style="margin-top:0">Tu cuenta ${esc(email||'')} usa una clave distinta a la de este equipo (quizás la cambiaste en otro dispositivo). Escríbela para seguir sincronizando; desde ahora este equipo usará esa clave.</p>
+      <form onsubmit="event.preventDefault();acctSubmit()" novalidate>
+      <input type="text" name="username" autocomplete="username" value="${esc(email||'')}" hidden>
+      <label class="f" for="ak1">Clave de la cuenta</label>
+      <div class="pwrow"><input id="ak1" class="i" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="button" onclick="peek('ak1',this)" aria-label="Mostrar clave">${ico('eye')}</button></div>
+      <div id="akE" class="err" role="alert"></div>
+      ${btns(`<button type="button" class="btn line" onclick="acctDone(false)">Ahora no</button>`,`<button id="akB" class="btn" style="flex:1">Continuar</button>`)}</form>
+      <button class="linkbtn" style="display:block;margin:12px auto 0" onclick="acctForgot()">Olvidé la clave de la cuenta</button>`);
+    LOCK=true;
+  });
+}
+async function acctSubmit(){
+  const p=$('#ak1').value,e=$('#akE'),b=$('#akB');e.textContent='';if(!p){e.textContent='Escribe la clave.';return}
+  b.disabled=true;b.textContent='Revisando…';
+  const key=await tryPass(p,ACCT);
+  if(!key){e.textContent='Esa clave no es correcta.';b.disabled=false;b.textContent='Continuar';return}
+  try{await useKey(key,ACCT);acctDone(true)}catch(x){e.textContent='No se pudo cambiar la clave ('+(x&&x.message||x)+').';b.disabled=false;b.textContent='Continuar'}
+}
+function acctForgot(){
+  if(!confirm('Sin esa clave no se pueden leer los datos de la nube. ¿Borrarlos y subir los de este equipo, protegidos con tu clave actual?'))return;
+  window.RESET_CLOUD=true;acctDone(true);
+}
+function acctDone(ok){const r=ACCT_RES;ACCT_RES=null;ACCT=null;closeSheet();render();if(r)r(ok)}
+
+/* ----- Seguridad (Ajustes) ----- */
+function openChangeKey(){
+  const f=(id,l,ac)=>`<label class="f" for="${id}">${l}</label><div class="pwrow"><input id="${id}" class="i" type="password" autocomplete="${ac}" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="button" onclick="peek('${id}',this)" aria-label="Mostrar clave">${ico('eye')}</button></div>`;
+  sheet(`<h3>Cambiar clave</h3>
+    <form onsubmit="event.preventDefault();changeKey()" novalidate>
+    ${f('ck0','Clave actual','current-password')}${f('ck1','Clave nueva','new-password')}
+    <div class="small muted" style="margin-top:6px">Al menos 8 caracteres, con letras y números.</div>
+    ${f('ck2','Repite la clave nueva','new-password')}
+    <div class="small muted" style="margin-top:10px">${window.MD_SYNC&&MD_SYNC.user?'Tus otros dispositivos te pedirán la clave nueva la próxima vez que se conecten. ':''}Los respaldos que ya exportaste siguen abriéndose con la clave anterior.</div>
+    <div id="ckE" class="err" role="alert"></div>
+    ${btns(`<button type="button" class="btn line" onclick="closeSheet()">Cancelar</button>`,`<button id="ckB" class="btn" style="flex:1">Cambiar clave</button>`)}</form>`);
+}
+async function changeKey(){
+  const a=$('#ck0').value,p=$('#ck1').value,e=$('#ckE'),b=$('#ckB');e.textContent='';
+  const x=passErr(p,$('#ck2').value);if(x){e.textContent=x;return}
+  b.disabled=true;b.textContent='Cambiando…';
+  try{
+    if(!await tryPass(a,CRYPT.meta)){e.textContent='Tu clave actual no es correcta.';b.disabled=false;b.textContent='Cambiar clave';return}
+    const{key,meta}=await newMeta(p);await useKey(key,meta);
+    if(window.MD_SYNC)MD_SYNC.rekey();
+    closeSheet();render();toast('Listo, tu clave cambió.');
+  }catch(x){e.textContent='No se pudo cambiar la clave ('+(x&&x.message||x)+').';b.disabled=false;b.textContent='Cambiar clave'}
+}
+async function toggleRemember(){
+  CRYPT.remember=!CRYPT.remember;
+  if(CRYPT.remember)await keyPut({salt:CRYPT.meta.salt,key:CRYPT.key});else await keyDel();
+  render();toast(CRYPT.remember?'Este dispositivo ya no te pedirá la clave.':'Te pediremos la clave cada vez que abras la app.');
+}
+function lockNow(){
+  if(CRYPT.remember){if(!confirm('Este dispositivo recuerda tu clave. Para bloquearlo hay que dejar de recordarla. ¿Continuar?'))return;keyDel().then(()=>SAVING).then(()=>location.reload())}
+  else SAVING.then(()=>location.reload());
+}
+
 /* ===================== Datos ===================== */
 // Efecto de cada movimiento sobre el saldo. El saldo siempre se calcula: saldo inicial + movimientos.
 // Así dos dispositivos sincronizados nunca se pisan el saldo entre sí.
 const eff=m=>m.type==='expense'?-m.amount:m.type==='income'?m.amount:(m.type==='adjust'||m.type==='loan')?m.amount:0;
 function blank(){return{v:2,setup:false,created:todayStr(),opening:0,balance:0,checked:null,goal:{name:'Ahorro del mes',amount:0},payday:1,movements:[],bills:[],loans:[],dayLog:{}}}
-function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.v===2){
+function load(txt){try{const s=JSON.parse(txt);if(s&&s.v===2){
   const r=Object.assign(blank(),s);
   if(s.opening===undefined)r.opening=(s.balance||0)-sum(r.movements,eff);
   if(r.paid){for(const k in r.paid)for(const b in r.paid[k]){const m=r.movements.find(x=>x.id===r.paid[k][b]);if(m)m.billPeriod=k}delete r.paid}
   return r}}catch(e){}return blank()}
-let S=load();
+let S=blank();
 function recalc(){S.balance=(S.opening||0)+sum(S.movements,eff)}
 recalc();
-function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){toast('No se pudo guardar: el almacenamiento está lleno. Exporta un respaldo y borra fotos de boletas antiguas.')}}
+// Se guarda cifrado; las escrituras van en fila para que nunca quede una versión antigua encima de una nueva
+let SAVING=Promise.resolve();
+function saveLocal(){
+  if(!CRYPT.key)return;
+  const txt=JSON.stringify(S),key=CRYPT.key;
+  SAVING=SAVING.then(()=>encStr(key,txt)).then(c=>localStorage.setItem(KEY,c))
+    .catch(()=>toast('No se pudo guardar: el almacenamiento está lleno. Exporta un respaldo y borra fotos de boletas antiguas.'));
+}
 function save(){saveLocal();if(window.MD_SYNC)window.MD_SYNC.push()}
 function addMov(m){m.id=m.id||uid();m.at=Date.now();S.movements.push(m);recalc();return m}
 function delMov(id){
@@ -956,8 +1152,15 @@ function renderAju(c){
       <div class="small muted" style="margin-top:6px">Tu período va desde ese día hasta el día anterior del mes siguiente. Actual: ${nice(c.P.start)} al ${nice(c.P.end)}.</div>
       <button class="btn" style="margin-top:12px" onclick="savePayday()">Guardar período</button>
     </section></div><div>
+    <section class="card"><h2>Seguridad</h2>
+      <p class="small muted" style="margin-top:0">Tus datos se guardan cifrados (AES-256) con tu clave${window.MD_SYNC&&MD_SYNC.user?', en este equipo y en la nube. Ni Google puede leerlos':' en este equipo'}. Sin tu clave no se pueden abrir.</p>
+      <div class="row kv"><span class="muted">Pedir clave al abrir</span><b>${CRYPT.remember?'No, la recuerda este equipo':'Sí'}</b></div>
+      <div class="acts"><button class="btn soft sm" onclick="openChangeKey()">Cambiar clave</button>
+      <button class="btn line sm" onclick="toggleRemember()">${CRYPT.remember?'Pedir clave al abrir':'Recordar en este equipo'}</button>
+      <button class="btn line sm" onclick="lockNow()">Bloquear ahora</button></div>
+    </section>
     <section class="card"><h2>Respaldo</h2>
-      <p class="small muted" style="margin-top:0">${window.MD_SYNC&&MD_SYNC.user?'Tus datos están en la nube con tu cuenta de Google. Igual puedes descargar una copia cuando quieras.':'Sin sesión, tus datos se guardan solo en este dispositivo. Exporta un respaldo de vez en cuando.'}</p>
+      <p class="small muted" style="margin-top:0">${window.MD_SYNC&&MD_SYNC.user?'Tus datos están en la nube con tu cuenta de Google. Igual puedes descargar una copia cuando quieras.':'Sin sesión, tus datos se guardan solo en este dispositivo. Exporta un respaldo de vez en cuando.'} El respaldo también va cifrado: para importarlo necesitas la clave que tenías al exportarlo.</p>
       <div class="acts"><button class="btn" onclick="exportData()">Exportar respaldo</button>
       <label class="btn line">Importar respaldo<input type="file" accept="application/json,.json" hidden onchange="importData(this)"></label></div>
     </section>
@@ -1255,7 +1458,7 @@ function commit(){
     if(r.type==='loanpay'&&!S.loans.some(l=>l.id===r.loanId)){toast('Elige a qué préstamo corresponde el abono.');return}
   }
   const src=CAP.mode==='voice'?'voz':CAP.mode==='photo'?'boleta':'texto';
-  const ids=[],newLoans=[];let imgFail=false;
+  const ids=[],newLoans=[];
   rows.forEach((r,i)=>{
     const date=r.date||todayStr(),a=r.amount;let m;
     if(r.type==='income')m=addMov({type:'income',amount:a,date,cat:'Ingreso',desc:(r.desc||'').trim()||'Ingreso',src});
@@ -1267,7 +1470,8 @@ function commit(){
     else if(r.type==='loanpay'){const l=S.loans.find(x=>x.id===r.loanId),inn=l.dir==='in';
       m=addMov({type:'loan',amount:inn?-a:a,date,loanId:l.id,kind:'pago',cat:'Préstamo',desc:inn?`Pago a ${l.person}`:`Cobro a ${l.person}`,src:'prestamo'})}
     else m=addMov({type:'expense',amount:a,date,cat:r.cat,desc:(r.desc||'').trim()||r.cat,src});
-    if(i===0&&CAP.mode==='photo'&&CAP.img){try{localStorage.setItem(IMG+m.id,CAP.img);m.img=true}catch(e){imgFail=true}}
+    if(i===0&&CAP.mode==='photo'&&CAP.img){m.img=true;const id=m.id;
+      putImg(id,CAP.img).then(ok=>{if(ok)return;const x=S.movements.find(y=>y.id===id);if(x){delete x.img;save()}toast('Registrado, pero no hubo espacio para guardar la foto.')})}
     ids.push(m.id);
   });
   save();closeSheet();render();
@@ -1275,7 +1479,7 @@ function commit(){
     r0.type==='income'?`Ingreso de ${money(r0.amount)} registrado.`:r0.type==='save'?`Apartaste ${money(r0.amount)} para tu meta. ¡Bien!`:
     r0.type==='bill'?`${rowTitle(r0).replace('Pago de ','')} quedó pagada.`:r0.type==='loan'?(r0.dir==='in'?`Deuda con ${cap1(r0.person.trim())} registrada.`:`Préstamo a ${cap1(r0.person.trim())} registrado.`):
     r0.type==='loanpay'?'Abono registrado.':`Gasto de ${money(r0.amount)} registrado.`;
-  toast(imgFail?'Registrado, pero no hubo espacio para guardar la foto.':msg,{label:'Deshacer',fn:()=>{ids.forEach(delMov);S.loans=S.loans.filter(l=>!newLoans.includes(l.id));save();render()}});
+  toast(msg,{label:'Deshacer',fn:()=>{ids.forEach(delMov);S.loans=S.loans.filter(l=>!newLoans.includes(l.id));save();render()}});
 }
 
 /* ----- Ingresos, ¿puedo comprarlo?, apartar ----- */
@@ -1336,7 +1540,7 @@ function recon(diff,ok){
 /* ----- Detalle de movimiento ----- */
 function openMov(id){
   const m=S.movements.find(x=>x.id===id);if(!m)return;
-  const img=m.img?localStorage.getItem(IMG+id):null;
+  const img=m.img&&localStorage.getItem(IMG+id);
   const editable=m.type==='expense'||m.type==='income';
   const tl={expense:'Gasto',income:'Ingreso',save:'Apartado para la meta',adjust:'Ajuste de saldo',loan:'Movimiento de préstamo'}[m.type];
   sheet(`<h3>${esc(tl)}</h3>
@@ -1347,8 +1551,9 @@ function openMov(id){
     :`<div class="row kv"><span class="muted">Monto</span><b class="num">${money(Math.abs(m.amount))}</b></div><div class="row kv"><span class="muted">Fecha</span><b>${nice(m.date)}</b></div><div class="row kv"><span class="muted">Detalle</span><b>${esc(m.desc)}</b></div>`}
     ${m.loanId?`<div class="note warn">${m.kind==='pago'?'Si lo eliminas, el préstamo vuelve a quedar con ese saldo pendiente.':'Es el dinero con que se abrió el préstamo. Si lo eliminas, tu saldo se ajusta, pero el préstamo sigue registrado.'}</div>`:''}
     ${m.billId?`<div class="note warn">Es el pago de una cuenta mensual. Si lo eliminas, la cuenta vuelve a quedar pendiente.</div>`:''}
-    ${img?`<div class="preview"><img src="${img}" alt="Boleta"></div>`:m.img?`<div class="note good">La foto de esta boleta está guardada en el dispositivo donde la tomaste.</div>`:''}
+    ${img?`<div class="preview"><img id="mvImg" alt="Boleta"></div>`:m.img?`<div class="note good">La foto de esta boleta está guardada en el dispositivo donde la tomaste.</div>`:''}
     ${btns(`<button class="btn danger" onclick="removeMov('${id}')">Eliminar</button>`,editable?`<button class="btn" style="flex:1" onclick="editMov('${id}')">Guardar cambios</button>`:`<button class="btn line" style="flex:1" onclick="closeSheet()">Cerrar</button>`)}`);
+  if(img)getImg(id).then(u=>{const el=$('#mvImg');if(el&&u)el.src=u});
 }
 function editMov(id){
   const m=S.movements.find(x=>x.id===id);const a=toNum($('#mvA').value);if(!a){toast('El monto no puede quedar en cero.');return}
@@ -1415,12 +1620,12 @@ async function resetAll(){
   if(!confirm(cloud?'¿Borrar todos los datos de Mis lucas? Como tienes la sesión iniciada, se borrarán también de la nube y de tus otros dispositivos.':'¿Borrar todos los datos de Mis lucas en este dispositivo?'))return;
   if(!confirm('Esta acción no se puede deshacer. ¿Seguro?'))return;
   if(cloud)await MD_SYNC.wipe();
-  Object.keys(localStorage).filter(k=>k.startsWith(KEY)).forEach(k=>localStorage.removeItem(k));location.reload();
+  Object.keys(localStorage).filter(k=>k.startsWith(KEY)).forEach(k=>localStorage.removeItem(k));await keyDel();location.reload();
 }
 
 /* ===================== Sincronización (interfaz) ===================== */
 const GLOGO='<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.2 1.5-5 2.3-8.2 2.3-6.2 0-11.5-4.1-13.4-9.9l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
-const SYNCTXT={off:['','Sin sesión'],connecting:['wait','Conectando…'],pending:['wait','Guardando en la nube…'],offline:['wait','Sin conexión. Se sincroniza cuando vuelva internet.'],ok:['ok','Sincronizado'],error:['err','No se pudo sincronizar']};
+const SYNCTXT={off:['','Sin sesión'],connecting:['wait','Conectando…'],pending:['wait','Guardando en la nube…'],offline:['wait','Sin conexión. Se sincroniza cuando vuelva internet.'],ok:['ok','Sincronizado'],error:['err','No se pudo sincronizar'],key:['err','Falta la clave de tu cuenta']};
 function syncCardHTML(){
   const s=window.MD_SYNC;
   if(!s)return`<h2>Sincronización</h2><p class="small muted" style="margin:0">No se pudo cargar la sincronización (puede ser falta de internet al abrir la app). Tus datos siguen guardados en este dispositivo.</p>`;
@@ -1431,6 +1636,7 @@ function syncCardHTML(){
     <div class="row kv"><span class="muted">Cuenta</span><b style="overflow:hidden;text-overflow:ellipsis">${esc(s.user.email||'')}</b></div>
     <div class="row kv"><span class="muted">Estado</span><span><span class="sync ${k}"></span>${t}</span></div>
     ${s.error?`<div class="note bad">${esc(s.error)}</div>`:''}
+    ${s.needKey?`<div class="note warn">Este equipo usa una clave distinta a la de tu cuenta, así que no se sincroniza.</div><button class="btn sm" style="margin-top:10px" onclick="MD_SYNC.retryKey()">Escribir la clave de la cuenta</button>`:''}
     <p class="small muted">Lo que registres aquí aparece en tus otros dispositivos con la misma cuenta. Las fotos de boletas quedan solo en el equipo donde las tomaste.</p>
     <button class="btn line sm" onclick="MD_SYNC.logout()">Cerrar sesión</button>`;
 }
@@ -1447,15 +1653,22 @@ function syncApplied(){
 }
 
 /* ===================== Inicio ===================== */
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!$('#sheetBg').classList.contains('open'))render()});
-render();
+// Tras 5 minutos en segundo plano la app se vuelve a bloquear (salvo que este equipo recuerde la clave)
+let HIDDEN_AT=0;
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden){HIDDEN_AT=Date.now();return}
+  if(!CRYPT.key)return;
+  if(!CRYPT.remember&&HIDDEN_AT&&Date.now()-HIDDEN_AT>5*60e3){SAVING.then(()=>location.reload());return}
+  if(!$('#sheetBg').classList.contains('open'))render();
+});
+boot();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
 <script type="module">
 /* ===================== Sincronización con Firebase ===================== */
 import {initializeApp} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {getAuth,GoogleAuthProvider,signInWithPopup,signInWithRedirect,getRedirectResult,onAuthStateChanged,signOut} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,onSnapshot,writeBatch} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import {initializeFirestore,persistentLocalCache,persistentMultipleTabManager,collection,doc,onSnapshot,writeBatch,getDocs,setDoc} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const firebaseConfig={
   apiKey:"AIzaSyDrcSzvnYhr8p9fiUcoRnmdzlGwdFrF_qw",
@@ -1479,12 +1692,18 @@ const stateOf=()=>clean({setup:S.setup,created:S.created,opening:S.opening,check
 let prev=(()=>{try{return JSON.parse(localStorage.getItem(SK))||{}}catch(e){return{}}})();
 const savePrev=()=>{try{localStorage.setItem(SK,JSON.stringify(prev))}catch(e){}};
 let uid=null,unsubs=[],server=null,got={},meta={},busy=false,again=false,timer=null;
+let cur=null,ckUnsub=null,checking=false,recheck=false,wiping=false;
+// Documentos que siguen sin cifrar (de versiones anteriores) o con una clave vieja: se vuelven a subir cifrados
+const LEG={m:new Set(),b:new Set(),l:new Set(),s:false};
+const DECERR='Hay datos en la nube con otra clave. Abre la app en el equipo donde la cambiaste para que se actualicen.';
 
-const MD=window.MD_SYNC={user:null,state:'off',error:'',login,logout,push,wipe};
+const MD=window.MD_SYNC={user:null,state:'off',error:'',needKey:false,login,logout,push,wipe,rekey,keyReady:keyCheck,
+  retryKey:()=>{MD.needKey=false;MD.error='';keyCheck()}};
 
 function setState(){
-  if(!uid)MD.state='off';
+  if(!cur)MD.state='off';
   else if(MD.error)MD.state='error';
+  else if(!uid)MD.state=MD.needKey?'key':'connecting';
   else if(!navigator.onLine)MD.state='offline';
   else if(!(got.m&&got.b&&got.s&&got.l)||meta.s.fromCache)MD.state='connecting';
   else if(meta.m.hasPendingWrites||meta.b.hasPendingWrites||meta.l.hasPendingWrites||meta.s.hasPendingWrites)MD.state='pending';
@@ -1500,15 +1719,87 @@ function fail(e){
 
 function stop(){unsubs.forEach(u=>u());unsubs=[];uid=null;server=null;got={};meta={}}
 function start(u){
-  stop();uid=u.uid;server={m:{},b:{},l:{},s:null};MD.error='';
+  stop();uid=u.uid;server={m:{},b:{},l:{},s:null};MD.error='';MD.needKey=false;
   if(prev.uid!==uid)prev={uid,m:{},b:{},l:{},s:null};
   prev.l=prev.l||{};
-  const opts={includeMetadataChanges:true};
-  unsubs.push(onSnapshot(collection(db,'users',uid,'movements'),opts,q=>{server.m={};q.forEach(d=>server.m[d.id]=d.data());meta.m=q.metadata;got.m=true;tick()},fail));
-  unsubs.push(onSnapshot(collection(db,'users',uid,'bills'),opts,q=>{server.b={};q.forEach(d=>server.b[d.id]=d.data());meta.b=q.metadata;got.b=true;tick()},fail));
-  unsubs.push(onSnapshot(collection(db,'users',uid,'loans'),opts,q=>{server.l={};q.forEach(d=>server.l[d.id]=d.data());meta.l=q.metadata;got.l=true;tick()},fail));
-  unsubs.push(onSnapshot(doc(db,'users',uid,'meta','state'),opts,d=>{server.s=d.exists()?d.data():null;meta.s=d.metadata;got.s=true;tick()},fail));
+  watch('m',collection(db,'users',uid,'movements'));
+  watch('b',collection(db,'users',uid,'bills'));
+  watch('l',collection(db,'users',uid,'loans'));
+  watch('s',doc(db,'users',uid,'meta','state'));
   setState();
+}
+// Cada documento en la nube es {d:"enc1:…"}: se descifra antes de comparar. Se recuerda el texto ya descifrado para no repetir trabajo.
+function watch(k,ref){
+  let seq=0,cache=new Map();const me=uid;
+  unsubs.push(onSnapshot(ref,{includeMetadataChanges:true},async q=>{
+    const n=++seq,nc=new Map(),out={},leg=new Set();
+    try{
+      const list=k==='s'?(q.exists()?[['s',q.data()]]:[]):q.docs.map(d=>[d.id,d.data()]);
+      for(const[id,data]of list){
+        if(!(data&&isEnc(data.d))){out[id]=data;leg.add(id);continue}
+        let t=cache.get(data.d);
+        if(t===undefined){try{t=await decStr(CRYPT.key,data.d)}catch(e){if(!CRYPT.oldKey)throw e;t=await decStr(CRYPT.oldKey,data.d);leg.add(id)}}
+        nc.set(data.d,t);out[id]=JSON.parse(t);
+      }
+    }catch(e){
+      // No se pudo descifrar: no tocamos nada (si la clave de la cuenta cambió, keyCheck lo resuelve)
+      if(n===seq&&uid===me){MD.error=DECERR;setState()}
+      return;
+    }
+    if(n!==seq||uid!==me||!server)return;
+    if(MD.error===DECERR)MD.error='';
+    cache=nc;
+    if(k==='s'){server.s=out.s||null;LEG.s=leg.size>0}else{server[k]=out;LEG[k]=leg}
+    meta[k]=q.metadata;got[k]=true;tick();
+  },fail));
+}
+
+/* ----- La clave de la cuenta ----- */
+// users/{uid}/meta/crypto guarda la sal y un verificador (nunca la clave). Todos los equipos de la cuenta deben usar la misma.
+const ckRef=()=>doc(db,'users',cur.uid,'meta','crypto');
+function watchKey(u){
+  if(ckUnsub)ckUnsub();MD.ck=undefined;
+  ckUnsub=onSnapshot(doc(db,'users',u.uid,'meta','crypto'),d=>{
+    if(!d.exists()&&d.metadata.fromCache)return;      // sin respuesta del servidor aún no sabemos si la cuenta tiene clave
+    MD.ck=d.exists()?d.data():null;keyCheck();
+  },fail);
+}
+async function keyCheck(){
+  if(!cur||MD.ck===undefined||wiping)return;
+  if(checking){recheck=true;return}
+  const ck=MD.ck;
+  if(!CRYPT.key){if(ck&&window.lockAccount)lockAccount(ck,cur.email);return}
+  checking=true;
+  try{
+    if(window.RESET_CLOUD){window.RESET_CLOUD=false;stop();await resetCloud()}
+    else if(!ck)setDoc(ckRef(),CRYPT.meta).catch(fail);
+    else if(ck.salt===CRYPT.meta.salt){if(uid!==cur.uid)start(cur)}
+    else if(!MD.needKey){
+      stop();setState();
+      const ok=await askAccountKey(ck,cur.email);
+      if(!ok){MD.needKey=true;setState()}
+      else recheck=true;
+    }
+  }catch(e){fail(e)}
+  checking=false;
+  if(recheck){recheck=false;keyCheck()}
+}
+// Olvidó la clave de la cuenta: se borra lo que hay en la nube (ilegible) y se sube lo de este equipo con su clave
+async function resetCloud(){
+  const w=[];
+  for(const c of['movements','bills','loans']){const q=await getDocs(collection(db,'users',cur.uid,c));q.forEach(d=>w.push(['del',c,d.id]))}
+  w.push(['delstate'],['ck',CRYPT.meta]);
+  prev={uid:cur.uid,m:{},b:{},l:{},s:null};savePrev();
+  commit(w);
+}
+// Cambio de clave: se vuelve a subir todo cifrado con la llave nueva (primero la sal, para que los otros equipos se detengan)
+function rekey(){
+  if(!cur)return;
+  if(!uid||!server){if(MD.ck!==undefined&&!MD.needKey)setDoc(ckRef(),CRYPT.meta).catch(fail);return}
+  const w=[['ck',CRYPT.meta]];
+  for(const[k,c]of[['m','movements'],['b','bills'],['l','loans']])for(const id in server[k])w.push(['set',c,id,server[k][id]]);
+  if(server.s)w.push(['state',server.s]);
+  commit(w);
 }
 function tick(){
   if(got.m&&got.b&&got.s&&got.l){
@@ -1553,6 +1844,10 @@ function reconcile(){
     const[bo,bp]=merge(S.bills,server.b,prev.b,'bills');
     const[lo,lp]=merge(S.loans,server.l,prev.l||{},'loans');
     S.movements=mo;S.bills=bo;S.loans=lo;
+    for(const[k,kind,arr]of[['m','movements',mo],['b','bills',bo],['l','loans',lo]]){
+      for(const id of LEG[k]){if(writes.some(w=>w[1]===kind&&w[2]===id))continue;const x=arr.find(o=>o.id===id);if(x)writes.push(['set',kind,id,clean(x)])}
+      LEG[k].clear();
+    }
     const ls=stateOf(),lsj=J(ls),rs=server.s,rsj=rs?J(rs):null;let ns;
     const take=()=>{Object.assign(S,{setup:!!rs.setup,created:rs.created||S.created,opening:rs.opening||0,checked:rs.checked||null,goal:rs.goal||{name:'Ahorro del mes',amount:0},payday:rs.payday||1,dayLog:rs.dayLog||{}});ns=rsj;changed=true};
     if(!rs){if(S.setup){writes.push(['state',ls]);ns=lsj}else ns=null}
@@ -1560,6 +1855,8 @@ function reconcile(){
     else if(!S.setup||prev.s==null)take();
     else if(lsj!==prev.s){writes.push(['state',ls]);ns=lsj}
     else take();
+    if(LEG.s&&rs&&!writes.some(w=>w[0]==='state')){const st=stateOf();writes.push(['state',st]);ns=J(st)}
+    LEG.s=false;
     prev={uid,m:mp,b:bp,l:lp,s:ns};savePrev();
     const KK={movements:'m',bills:'b',loans:'l'};
     for(const w of writes){if(w[0]==='set')server[KK[w[1]]][w[2]]=w[3];else if(w[0]==='del')delete server[KK[w[1]]][w[2]];else server.s=w[1]}
@@ -1570,23 +1867,37 @@ function reconcile(){
   busy=false;
   if(again){again=false;push()}
 }
+// Cifra y envía. El cifrado va en fila para que las escrituras lleguen en orden;
+// no se espera la confirmación del servidor (sin internet nunca llegaría).
+let CQ=Promise.resolve();
 function commit(writes){
-  const ps=[];
-  for(let i=0;i<writes.length;i+=400){
-    const b=writeBatch(db);
-    writes.slice(i,i+400).forEach(w=>{
-      if(w[0]==='set')b.set(doc(db,'users',uid,w[1],w[2]),w[3]);
-      else if(w[0]==='del')b.delete(doc(db,'users',uid,w[1],w[2]));
-      else if(w[0]==='state')b.set(doc(db,'users',uid,'meta','state'),w[1]);
-      else if(w[0]==='delstate')b.delete(doc(db,'users',uid,'meta','state'));
-    });
-    ps.push(b.commit().catch(fail));
-  }
-  return Promise.all(ps);
+  const id=uid||(cur&&cur.uid),key=CRYPT.key;
+  const box=async o=>({d:await encStr(key,JSON.stringify(o))});
+  const p=CQ.then(async()=>{
+    const ready=[];
+    for(const w of writes)ready.push(w[0]==='set'?['set',w[1],w[2],await box(w[3])]:w[0]==='state'?['state',await box(w[1])]:w);
+    const ps=[];
+    for(let i=0;i<ready.length;i+=400){
+      const b=writeBatch(db);
+      ready.slice(i,i+400).forEach(w=>{
+        if(w[0]==='set')b.set(doc(db,'users',id,w[1],w[2]),w[3]);
+        else if(w[0]==='del')b.delete(doc(db,'users',id,w[1],w[2]));
+        else if(w[0]==='state')b.set(doc(db,'users',id,'meta','state'),w[1]);
+        else if(w[0]==='delstate')b.delete(doc(db,'users',id,'meta','state'));
+        else if(w[0]==='ck')b.set(doc(db,'users',id,'meta','crypto'),w[1]);
+        else if(w[0]==='delck')b.delete(doc(db,'users',id,'meta','crypto'));
+      });
+      ps.push(b.commit().catch(fail));
+    }
+    return ps;
+  });
+  CQ=p.catch(()=>{});
+  return p.then(ps=>Promise.all(ps));
 }
 async function wipe(){
   if(!uid||!server)return;
-  const w=[...Object.keys(server.m).map(id=>['del','movements',id]),...Object.keys(server.b).map(id=>['del','bills',id]),...Object.keys(server.l||{}).map(id=>['del','loans',id]),['delstate']];
+  wiping=true;
+  const w=[...Object.keys(server.m).map(id=>['del','movements',id]),...Object.keys(server.b).map(id=>['del','bills',id]),...Object.keys(server.l||{}).map(id=>['del','loans',id]),['delstate'],['delck']];
   const p=commit(w);stop();
   await Promise.race([p,new Promise(r=>setTimeout(r,4000))]);
   prev={};savePrev();
@@ -1606,11 +1917,12 @@ async function logout(){if(!confirm('¿Cerrar sesión? Tus datos se quedan en es
 
 getRedirectResult(auth).catch(()=>{});
 onAuthStateChanged(auth,u=>{
-  MD.user=u?{email:u.email,name:u.displayName}:null;
-  if(u){start(u);if(!S.setup&&LOCK)onboarding();}else{stop();setState()}
-  if(u&&!S.setup)toast('Sesión iniciada. Buscando tus datos…');
+  cur=u;MD.user=u?{email:u.email,name:u.displayName}:null;MD.needKey=false;MD.error='';
+  if(u){watchKey(u);setState();if(CRYPT.key&&!S.setup&&LOCK)onboarding()}
+  else{if(ckUnsub)ckUnsub();ckUnsub=null;MD.ck=undefined;stop();setState();if(window.lockAuth)lockAuth()}
+  if(u&&CRYPT.key&&!S.setup)toast('Sesión iniciada. Buscando tus datos…');
 });
-if(!S.setup&&LOCK)onboarding();
+if(CRYPT.key&&!S.setup&&LOCK)onboarding();
 syncUI();
 </script>
 </body>
